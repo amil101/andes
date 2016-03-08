@@ -18,13 +18,15 @@
 
 package org.wso2.andes.kernel;
 
+import java.nio.ByteBuffer;
+
 /**
  * This class defines the content of an Andes message.
  */
 public class AndesMessagePart {
     long messageID;
     int offSet = 0;
-    private byte[] data;
+    private ByteBuffer data;
     private int dataLength;
 
     public int getOffset() {
@@ -43,11 +45,11 @@ public class AndesMessagePart {
         this.messageID = messageID;
     }
 
-    public byte[] getData() {
+    public ByteBuffer getData() {
         return data;
     }
 
-    public void setData(byte[] data) {
+    public void setData(ByteBuffer data) {
         this.data = data;
     }
 

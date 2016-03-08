@@ -10,6 +10,20 @@ Fragment-Host: org.eclipse.equinox.registry;bundle-version="[3.3.0,3.5
  .0)"
 Eclipse-PatchFragment: true
 Bundle-Vendor: %providerName
+Import-Package: io.netty.buffer,
+ io.netty.buffer,
+ io.netty.handler.codec,
+ org.slf4j,
+ io.netty.util,
+ org.apache.log4j,
+ org.apache.log4j,
+ org.apache.log4j,
+ com.google.common.cache,
+ com.lmax.disruptor,
+ org.wso2.carbon.metrics.manager,
+ org.wso2.carbon.metrics.manager,
+ io.netty.channel,
+ org.wso2.carbon
 
 Name: runtime_registry_compatibility.jar
 SHA1-Digest: Oxij1RUWY4Q3SjHVBqQuVSFgLxs=

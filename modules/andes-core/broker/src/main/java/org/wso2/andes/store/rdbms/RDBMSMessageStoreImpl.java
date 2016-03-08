@@ -34,8 +34,8 @@ import org.wso2.andes.kernel.DurableStoreConnection;
 import org.wso2.andes.kernel.MessageStore;
 import org.wso2.andes.kernel.slot.Slot;
 import org.wso2.andes.metrics.MetricsConstants;
-import org.wso2.andes.store.AndesDataIntegrityViolationException;
 import org.wso2.andes.server.queue.DLCQueueUtils;
+import org.wso2.andes.store.AndesDataIntegrityViolationException;
 import org.wso2.andes.store.cache.AndesMessageCache;
 import org.wso2.andes.store.cache.MessageCacheFactory;
 import org.wso2.andes.tools.utils.MessageTracer;
@@ -43,6 +43,7 @@ import org.wso2.carbon.metrics.manager.Level;
 import org.wso2.carbon.metrics.manager.MetricManager;
 import org.wso2.carbon.metrics.manager.Timer.Context;
 
+import java.nio.ByteBuffer;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -206,7 +207,13 @@ public class RDBMSMessageStoreImpl implements MessageStore {
     private void addContentToBatch(PreparedStatement preparedStatement, AndesMessagePart messagePart) throws SQLException {
         preparedStatement.setLong(1, messagePart.getMessageID());
         preparedStatement.setInt(2, messagePart.getOffset());
-        preparedStatement.setBytes(3, messagePart.getData());
+
+        ByteBuffer getmsg=messagePart.getData();
+        byte[] da = new byte[getmsg.limit()];
+        getmsg.get(da);
+
+
+        preparedStatement.setBytes(3,da );
         preparedStatement.addBatch();
     }
 
@@ -221,6 +228,7 @@ public class RDBMSMessageStoreImpl implements MessageStore {
         try {
             messagePart = getContentFromCache(messageId, offsetValue);
             if (null == messagePart) {
+
                 messagePart = getContentFromStorage(messageId, offsetValue);
             }
         } finally {
@@ -343,9 +351,10 @@ public class RDBMSMessageStoreImpl implements MessageStore {
 
     private AndesMessagePart createMessagePart(ResultSet results, long messageId, int offsetValue) throws SQLException {
         byte[] b = results.getBytes(MESSAGE_CONTENT);
+        ByteBuffer bb=null;
         AndesMessagePart messagePart = new AndesMessagePart();
         messagePart.setMessageID(messageId);
-        messagePart.setData(b);
+        messagePart.setData(bb.wrap(b));
         messagePart.setDataLength(b.length);
         messagePart.setOffSet(offsetValue);
 
@@ -1954,7 +1963,12 @@ public class RDBMSMessageStoreImpl implements MessageStore {
             for (AndesMessagePart messagePart : message.getContentChunkList()) {
                 insertContentPreparedStatement.setLong(1, metadata.getMessageID());
                 insertContentPreparedStatement.setInt(2, messagePart.getOffset());
-                insertContentPreparedStatement.setBytes(3, messagePart.getData());
+
+                ByteBuffer getmsg=messagePart.getData();
+                byte[] da = new byte[getmsg.limit()];
+                getmsg.get(da);
+
+                insertContentPreparedStatement.setBytes(3, da);
                 insertContentPreparedStatement.addBatch();
             }
         }
@@ -2025,7 +2039,12 @@ public class RDBMSMessageStoreImpl implements MessageStore {
             for (AndesMessagePart messagePart : message.getContentChunkList()) {
                 preparedStatementForContent.setLong(1, messageID);
                 preparedStatementForContent.setInt(2, messagePart.getOffset());
-                preparedStatementForContent.setBytes(3, messagePart.getData());
+
+                ByteBuffer getmsg=messagePart.getData();
+                byte[] da = new byte[getmsg.limit()];
+                getmsg.get(da);
+
+                preparedStatementForContent.setBytes(3, da);
                 preparedStatementForContent.addBatch();
             }
 
@@ -2136,9 +2155,9 @@ public class RDBMSMessageStoreImpl implements MessageStore {
                 int offset = results.getInt(RDBMSConstants.MSG_OFFSET);
 
                 AndesMessagePart messagePart = new AndesMessagePart();
-
+                ByteBuffer bb=null;
                 messagePart.setMessageID(messageID);
-                messagePart.setData(b);
+                messagePart.setData(bb.wrap(b));
                 messagePart.setDataLength(b.length);
                 messagePart.setOffSet(offset);
                 contentParts.put(offset, messagePart);

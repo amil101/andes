@@ -18,8 +18,12 @@
 
 package org.wso2.andes.kernel;
 
+import io.netty.buffer.ByteBuf;
+
 import java.nio.ByteBuffer;
 import java.util.Map;
+
+import static io.netty.buffer.Unpooled.wrappedBuffer;
 
 /**
  * DisruptorCachedContent has access to content cache built by the disruptor
@@ -82,8 +86,12 @@ public class DisruptorCachedContent implements AndesContent {
             } else {
                 numOfBytesToRead = remaining;
             }
+            messagePart.getData().clear();
+            ByteBuf slice=wrappedBuffer(messagePart.getData()).slice(positionToReadFromChunk,numOfBytesToRead);
+            slice.clear();
+            destinationBuffer.put(slice.nioBuffer(0,slice.capacity()));
+            //            destinationBuffer.put(messagePart.getData(), positionToReadFromChunk, numOfBytesToRead);
 
-            destinationBuffer.put(messagePart.getData(), positionToReadFromChunk, numOfBytesToRead);
 
             written = written + numOfBytesToRead;
             currentBytePosition = currentBytePosition + numOfBytesToRead;

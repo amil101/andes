@@ -18,6 +18,7 @@
 
 package org.wso2.andes.kernel;
 
+import io.netty.buffer.ByteBuf;
 import org.apache.log4j.Logger;
 import org.wso2.andes.amqp.AMQPUtils;
 import org.wso2.andes.configuration.AndesConfigurationManager;
@@ -37,6 +38,7 @@ import org.wso2.andes.server.cluster.coordination.MessageIdGenerator;
 import org.wso2.andes.server.cluster.coordination.TimeStampBasedMessageIdGenerator;
 import org.wso2.andes.server.cluster.coordination.hazelcast.HazelcastAgent;
 import org.wso2.andes.server.queue.DLCQueueUtils;
+import org.wso2.andes.server.util.objectpool;
 import org.wso2.andes.subscription.LocalSubscription;
 import org.wso2.andes.subscription.SubscriptionEngine;
 import org.wso2.andes.thrift.MBThriftClient;
@@ -170,7 +172,11 @@ public class MessagingEngine {
      * @throws AndesException
      */
     public void messagesReceived(List<AndesMessage> messageList) throws AndesException{
-        messageStore.storeMessages(messageList);
+       messageStore.storeMessages(messageList);
+        objectpool object = objectpool.getInstance();
+        ByteBuf releasebuf=object.getBytebufContent();
+        object.releasebuf(releasebuf);
+
     }
 
     /**

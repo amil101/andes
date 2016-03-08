@@ -19,6 +19,7 @@
 package org.wso2.andes.kernel.disruptor.inbound;
 
 import com.lmax.disruptor.EventHandler;
+import io.netty.buffer.ByteBuf;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.wso2.andes.kernel.AndesMessage;
@@ -26,6 +27,8 @@ import org.wso2.andes.kernel.AndesMessagePart;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static io.netty.buffer.Unpooled.wrappedBuffer;
 
 /**
  * This class will convert incoming message content chunks into content chunks
@@ -122,7 +125,8 @@ public class ContentChunkHandler implements EventHandler<InboundEventContainer> 
         List<AndesMessagePart> chunkList = new ArrayList<>();
         int written = 0;    // Written bytes to new content chunks
         int totalRemainingLength = contentLength;
-        byte[] data = null;
+//        byte[] data = null;
+        ByteBuf slice=null;
         int startPos = 0;   // Start position of destination data array. (for copying)
 
         for (AndesMessagePart chunk : partList) {
@@ -132,7 +136,8 @@ public class ContentChunkHandler implements EventHandler<InboundEventContainer> 
             //
             // Chunk is either equal to the the maxChunkSize or the last chunk of the original that is
             // less than the maxChunkSize.
-            if (data == null && (chunk.getDataLength() == maxChunkSize ||
+           // if (data == null && (chunk.getDataLength() == maxChunkSize ||
+            if ( slice == null &&(chunk.getDataLength() == maxChunkSize ||
                     (chunk.getDataLength() < maxChunkSize && chunk.getDataLength() == totalRemainingLength))) {
 
                 chunk.setOffSet(written);
@@ -147,22 +152,31 @@ public class ContentChunkHandler implements EventHandler<InboundEventContainer> 
             int chunkRemainingLength = chunk.getDataLength();
             while (chunkRemainingLength >= maxChunkSize) {
 
-                if (null == data) {
+                /*if (null == data) {
                     data = new byte[maxChunkSize];
                     startPos = 0;
+                }*/
+                if (null == slice) {
+                    startPos = 0;
                 }
+//                System.arraycopy(chunk.getData(), chunkStartPos, data, startPos, maxChunkSize - startPos);
 
-                System.arraycopy(chunk.getData(), chunkStartPos, data, startPos, maxChunkSize - startPos);
+                chunk.getData().clear();
+
+                slice=wrappedBuffer(chunk.getData()).slice(chunkStartPos,maxChunkSize - startPos);
+                slice.clear();
+
 
                 AndesMessagePart newChunk = new AndesMessagePart();
                 newChunk.setMessageID(chunk.getMessageID());
-                newChunk.setDataLength(data.length); // ultimately we write a max chunk here
+                newChunk.setDataLength(slice.capacity()); // ultimately we write a max chunk here
                 newChunk.setOffSet(written);
-                newChunk.setData(data);
+               newChunk.setData(slice.nioBuffer(0,slice.capacity()));
                 chunkList.add(newChunk);
 
-                written = written + data.length;
-                data = null;
+                written = written + slice.capacity();
+//                data = null;
+                slice=null;
                 chunkStartPos = chunkStartPos + (maxChunkSize - startPos);
                 chunkRemainingLength = chunkRemainingLength - (maxChunkSize - startPos);
                 startPos = 0;
@@ -172,7 +186,8 @@ public class ContentChunkHandler implements EventHandler<InboundEventContainer> 
             // This is either original chunks left over part is less than maxChunkSize
             // or a original chunk it self is less than maxChunkSize
             while (chunkRemainingLength > 0) {
-                if (null == data) {
+//                if (null == data) {
+
                     int arrayLength;
                     if (chunkRemainingLength == totalRemainingLength) {
                         arrayLength = chunkRemainingLength;
@@ -181,29 +196,35 @@ public class ContentChunkHandler implements EventHandler<InboundEventContainer> 
                     } else {
                         arrayLength = totalRemainingLength;
                     }
-                    data = new byte[arrayLength];
-                }
+//                    data = new byte[arrayLength];
+//                }
 
                 int writeSize;
-                if (chunkRemainingLength <= (data.length - startPos)) {
+//                if (chunkRemainingLength <= (data.length - startPos)) {
+                if (chunkRemainingLength <= (arrayLength - startPos)) {
                     writeSize = chunkRemainingLength;
                 } else {
-                    writeSize = data.length - startPos;
+                    writeSize = arrayLength - startPos;
                 }
-                System.arraycopy(chunk.getData(), chunkStartPos, data, startPos, writeSize);
+//                System.arraycopy(chunk.getData(), chunkStartPos, data, startPos, writeSize);
+                slice=wrappedBuffer(chunk.getData()).slice(chunkStartPos,writeSize);
+                slice.clear();
+
                 startPos = startPos + writeSize;
                 chunkStartPos = chunkStartPos + writeSize;
                 chunkRemainingLength = chunkRemainingLength - writeSize;
-                if (startPos == data.length) {
+//                if (startPos == data.length) {
+                if (startPos == slice.capacity()) {
                     AndesMessagePart newChunk = new AndesMessagePart();
                     newChunk.setMessageID(chunk.getMessageID());
                     newChunk.setOffSet(written);
-                    newChunk.setDataLength(data.length);
-                    newChunk.setData(data);
+                    newChunk.setDataLength(slice.capacity());
+                    newChunk.setData(slice.nioBuffer(0,slice.capacity()));
+          //          newChunk.setData(data);
                     chunkList.add(newChunk);
-                    written = written + data.length;
+                    written = written + slice.capacity();
                     totalRemainingLength = contentLength - written;
-                    data = null;
+                    slice = null;
                     startPos = 0;
                 }
             }

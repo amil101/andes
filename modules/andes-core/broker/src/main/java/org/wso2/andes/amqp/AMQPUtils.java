@@ -17,6 +17,7 @@
  */
 package org.wso2.andes.amqp;
 
+import io.netty.buffer.ByteBuf;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.wso2.andes.configuration.AndesConfigurationManager;
@@ -49,7 +50,6 @@ import org.wso2.andes.server.store.StorableMessageMetaData;
 import org.wso2.andes.server.store.StoredMessage;
 import org.wso2.andes.server.subscription.Subscription;
 import org.wso2.andes.store.StoredAMQPMessage;
-import org.wso2.andes.amqp.AMQPLocalSubscription;
 import org.wso2.andes.subscription.LocalSubscription;
 import org.wso2.andes.subscription.OutboundSubscription;
 
@@ -60,6 +60,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static io.netty.buffer.Unpooled.wrappedBuffer;
 
 /**
  * This class defines AMQP related miscellaneous util methods.
@@ -340,7 +342,13 @@ public class AMQPUtils {
             // message content can be returned as null if a sudden queue purge occurs and clears all message content in store.
             // This has to be handled.
             if (messagePart.getData() != null) {
-                dst.put(messagePart.getData(), positionToReadFromChunk, numOfBytesToRead);
+
+                messagePart.getData().clear();
+                ByteBuf slice=wrappedBuffer(messagePart.getData()).slice(positionToReadFromChunk,numOfBytesToRead);
+                slice.clear();
+                dst.put(slice.nioBuffer(0,slice.capacity()));
+
+                //  dst.put(messagePart.getData(), positionToReadFromChunk, numOfBytesToRead);
             }
 
             written += numOfBytesToRead;
