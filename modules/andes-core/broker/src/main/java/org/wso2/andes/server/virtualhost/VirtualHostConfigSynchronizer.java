@@ -121,7 +121,7 @@ public class VirtualHostConfigSynchronizer implements
         try {
             log.info("Queue removal request received queue= " + queue.queueName);
             removeQueue(queue.queueName);
-            AndesContext.getInstance().getAMQPConstructStore().removeLocalQueueData(queue.queueName);
+            AndesContext.getInstance().getAMQPConstructStore().removeQueue(queue.queueName, false);
         } catch (Exception e) {
             log.error("could not remove cluster queue", e);
             throw new AndesException("could not remove cluster queue : " + queue.toString(), e);
@@ -146,14 +146,14 @@ public class VirtualHostConfigSynchronizer implements
     /**
      * purge queue from local node - clear all in memory message buffers for the queue in this node.
      *
-     * @param queue The Andes Queue object to purge
+     * @param queue
      * @throws AndesException
      */
     public void clusterQueuePurged(AndesQueue queue) throws AndesException {
         try {
             log.info("Queue purge request received queue= " + queue.queueName);
             MessagingEngine.getInstance().clearMessagesFromQueueInMemory(queue.queueName,
-                    queue.getLastPurgedTimestamp(), queue.getProtocolType(), queue.getDestinationType());
+                    queue.getLastPurgedTimestamp());
 
         } catch (AndesException e) {
             throw new AndesException("Could not purge cluster queue : " + queue.toString(), e);

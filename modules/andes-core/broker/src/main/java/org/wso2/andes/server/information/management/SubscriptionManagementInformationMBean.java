@@ -17,24 +17,17 @@
  */
 package org.wso2.andes.server.information.management;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.wso2.andes.kernel.AndesContext;
 import org.wso2.andes.kernel.AndesException;
 import org.wso2.andes.kernel.AndesSubscription;
-import org.wso2.andes.kernel.DestinationType;
 import org.wso2.andes.kernel.MessagingEngine;
-import org.wso2.andes.kernel.ProtocolType;
 import org.wso2.andes.management.common.mbeans.SubscriptionManagementInformation;
 import org.wso2.andes.server.management.AMQManagedObject;
-import org.wso2.andes.subscription.LocalSubscription;
-import org.wso2.andes.subscription.SubscriptionEngine;
 
-import javax.management.MBeanException;
 import javax.management.NotCompliantMBeanException;
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Map;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -42,14 +35,7 @@ import java.util.Set;
  */
 public class SubscriptionManagementInformationMBean extends AMQManagedObject implements SubscriptionManagementInformation {
 
-    private static Log log = LogFactory.getLog(SubscriptionManagementInformationMBean.class);
-
     private static final String ALL_WILDCARD = "*";
-
-    /**
-     * Subscription store used to query subscription related information
-     */
-    private SubscriptionEngine subscriptionEngine;
 
     /**
      * Instantiates the MBeans related to subscriptions.
@@ -58,8 +44,6 @@ public class SubscriptionManagementInformationMBean extends AMQManagedObject imp
      */
     public SubscriptionManagementInformationMBean() throws NotCompliantMBeanException {
         super(SubscriptionManagementInformation.class, SubscriptionManagementInformation.TYPE);
-
-        subscriptionEngine = AndesContext.getInstance().getSubscriptionEngine();
     }
 
     /**
@@ -74,105 +58,81 @@ public class SubscriptionManagementInformationMBean extends AMQManagedObject imp
      * {@inheritDoc}
      */
     @Override
-    public String[] getSubscriptions( String isDurable, String isActive, String protocolType,
-                                         String destinationType) throws MBeanException {
+    public String[] getAllQueueSubscriptions( String isDurable, String isActive) {
         try {
+            List<String> allSubscriptionsForQueues = new ArrayList<>();
 
-            ProtocolType protocolTypeArg = ProtocolType.valueOf(protocolType);
-            DestinationType destinationTypeArg = DestinationType.valueOf(destinationType);
+            List<String> allQueues = AndesContext.getInstance().getAMQPConstructStore().getQueueNames();
 
-            Set<AndesSubscription> subscriptions = AndesContext.getInstance().getSubscriptionEngine()
-                            .getAllClusterSubscriptionsForDestinationType(protocolTypeArg, destinationTypeArg);
+            for (String queue : allQueues) {
+                Set<AndesSubscription> subscriptions = AndesContext.getInstance().getSubscriptionStore()
+                        .getAllSubscribersForDestination(queue, false, AndesSubscription.SubscriptionType.AMQP);
 
-            Set<AndesSubscription> subscriptionsToDisplay;
+                for (AndesSubscription s : subscriptions) {
+                    Long pendingMessageCount = MessagingEngine.getInstance().getMessageCountOfQueue(queue);
 
-            if (DestinationType.TOPIC == destinationTypeArg) {
-                subscriptionsToDisplay = filterTopicSubscriptions(isDurable, isActive, subscriptions);
-            } else {
-                subscriptionsToDisplay = filterQueueSubscriptions(isDurable, isActive, subscriptions);
-            }
+                    if (!isDurable.equals(ALL_WILDCARD) && (Boolean.parseBoolean(isDurable) != s.isDurable())) {
+                        continue;
+                    }
+                    if (!isActive.equals(ALL_WILDCARD) && (Boolean.parseBoolean(isActive) != s.hasExternalSubscriptions())) {
+                        continue;
+                    }
 
-            String[] subscriptionArray = new String[subscriptionsToDisplay.size()];
-
-            int index = 0;
-            for (AndesSubscription subscription : subscriptionsToDisplay) {
-                Long pendingMessageCount
-                        = MessagingEngine.getInstance().getMessageCountOfQueue(subscription.getStorageQueueName());
-
-                subscriptionArray[index] = renderSubscriptionForUI(subscription, pendingMessageCount.intValue());
-                index++;
-
-            }
-            return subscriptionArray;
-
-        } catch (Exception e) {
-            log.error("Error while invoking MBeans to retrieve subscription information", e);
-            throw new MBeanException(e, "Error while invoking MBeans to retrieve subscription information");
-        }
-    }
-
-    private Set<AndesSubscription> filterQueueSubscriptions(String isDurable, String isActive,
-                                                            Set<AndesSubscription> subscriptions) {
-        Set<AndesSubscription> subscriptionsToDisplay = new HashSet<>();
-
-        for (AndesSubscription subscription : subscriptions) {
-            if (!isDurable.equals(ALL_WILDCARD)
-                    && (Boolean.parseBoolean(isDurable) != subscription.isDurable())) {
-                continue;
-            }
-            if (!isActive.equals(ALL_WILDCARD)
-                    && (Boolean.parseBoolean(isActive) != subscription.hasExternalSubscriptions())) {
-                continue;
-            }
-
-            subscriptionsToDisplay.add(subscription);
-        }
-
-        return subscriptionsToDisplay;
-    }
-
-    private Set<AndesSubscription> filterTopicSubscriptions(String isDurable, String isActive,
-                                                            Set<AndesSubscription> subscriptions) {
-        Set<AndesSubscription> subscriptionsToDisplay = new HashSet<>();
-
-        Map<String, AndesSubscription> inactiveSubscriptions = new HashMap<>();
-        Set<String> uniqueSubscriptionIDs = new HashSet<>();
-
-        for (AndesSubscription subscription : subscriptions) {
-            if (!isDurable.equals(ALL_WILDCARD)
-                    && (Boolean.parseBoolean(isDurable) != subscription.isDurable())) {
-                continue;
-            }
-            if (!isActive.equals(ALL_WILDCARD)
-                    && (Boolean.parseBoolean(isActive) != subscription.hasExternalSubscriptions())) {
-                continue;
-            }
-
-            if (subscription.isDurable()) {
-                if (subscription.hasExternalSubscriptions()) {
-                    uniqueSubscriptionIDs.add(subscription.getTargetQueue());
-                } else {
-                    // Since only one inactive shared subscription should be shown
-                    // we replace the existing value if any
-                    inactiveSubscriptions.put(subscription.getTargetQueue(), subscription);
-                    // Inactive subscriptions will be added later considering shared subscriptions
-                    continue;
+                    allSubscriptionsForQueues.add(renderSubscriptionForUI(s,pendingMessageCount.intValue()));
                 }
             }
+            return allSubscriptionsForQueues.toArray(new String[allSubscriptionsForQueues.size()]);
 
-            subscriptionsToDisplay.add(subscription);
+        } catch (Exception e) {
+            throw new RuntimeException("Error in accessing subscription information", e);
         }
+    }
 
-        // In UI only one inactive shared subscription should be shown if there are no active subscriptions.
-        for (Map.Entry<String, AndesSubscription> inactiveEntry : inactiveSubscriptions.entrySet()) {
-            // If there are active subscriptions with same target queue, we skip adding inactive subscriptions
-            if (!(uniqueSubscriptionIDs.contains(inactiveEntry.getKey()))) {
-                subscriptionsToDisplay.add(inactiveEntry.getValue());
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String[] getAllTopicSubscriptions(String isDurable, String isActive) {
+        try {
+            List<String> allSubscriptionsForTopics = new ArrayList<>();
+
+            Set<String> allTopics = AndesContext.getInstance().getSubscriptionStore().getTopics();
+
+            for (String topic : allTopics) {
+                Set<AndesSubscription> subscriptions;
+                subscriptions = AndesContext.getInstance().getSubscriptionStore().getAllSubscribersForDestination
+                        (topic, true, AndesSubscription.SubscriptionType.AMQP);
+
+                Set<String> uniqueueSubscriptionIDs = new HashSet<String>();
+                for (AndesSubscription s : subscriptions) {
+
+                    Long pendingMessageCount = MessagingEngine.getInstance().getMessageCountOfQueue(s.getStorageQueueName());
+                    if (!isDurable.equals(ALL_WILDCARD) && (Boolean.parseBoolean(isDurable) != s.isDurable())) {
+                        continue;
+                    }
+                    if (!isActive.equals(ALL_WILDCARD) && (Boolean.parseBoolean(isActive) != s.hasExternalSubscriptions())) {
+                        continue;
+                    } if(!s.isBoundToTopic()){
+                        continue;
+                    }
+                    //Filter multiple shared subscriptions in disconnected mode. Because in UI
+                    // only one inactive shared subscription should be shown.
+                    if (true == s.isDurable()) {
+                        if (uniqueueSubscriptionIDs.contains(s.getTargetQueue()) && !(s.hasExternalSubscriptions())) {
+                            continue;
+                        } else {
+                            uniqueueSubscriptionIDs.add(s.getTargetQueue());
+                        }
+                    }
+
+                    allSubscriptionsForTopics.add(renderSubscriptionForUI(s,pendingMessageCount.intValue()));
+                }
             }
+            return allSubscriptionsForTopics.toArray(new String[allSubscriptionsForTopics.size()]);
+
+        } catch (Exception e) {
+            throw new RuntimeException("Error in accessing subscription information", e);
         }
-
-
-        return subscriptionsToDisplay;
     }
 
     /**
@@ -185,28 +145,6 @@ public class SubscriptionManagementInformationMBean extends AMQManagedObject imp
             return messageCount.intValue();
         }catch (Exception e) {
             throw new RuntimeException("Error in retrieving pending message count", e);
-        }
-    }
-
-    @Override
-    public void removeSubscription(String subscriptionId, String destinationName, String protocolType,
-                                   String destinationType) {
-        try {
-            Set<LocalSubscription> allSubscribersForDestination
-                    = subscriptionEngine.getActiveLocalSubscribers(destinationName, ProtocolType.valueOf(protocolType),
-                    DestinationType.valueOf(destinationType));
-
-            for (LocalSubscription andesSubscription : allSubscribersForDestination) {
-
-                String currentSubscriptionId = andesSubscription.getSubscriptionID();
-
-                if (currentSubscriptionId.equals(subscriptionId)) {
-                    andesSubscription.forcefullyDisconnect();
-                    break;
-                }
-            }
-        } catch (AndesException e) {
-            throw new RuntimeException("Error in accessing subscription information", e);
         }
     }
 
@@ -225,7 +163,7 @@ public class SubscriptionManagementInformationMBean extends AMQManagedObject imp
     private static String renderSubscriptionForUI(AndesSubscription subscription,
                                                   int pendingMessageCount) throws AndesException {
 
-        String subscriptionIdentifier = subscription.getSubscriptionID();
+        String subscriptionIdentifier = "1_" + subscription.getSubscribedNode() + "@" + subscription.getTargetQueue();
 
         //in case of topic whats in v2 is : topicSubscriber.getDestination() + "@" +
         // topicSubscriber.boundTopicName; --
@@ -237,8 +175,6 @@ public class SubscriptionManagementInformationMBean extends AMQManagedObject imp
                 + "|" + subscription.hasExternalSubscriptions()
                 + "|" + pendingMessageCount
                 + "|" + subscription.getSubscribedNode()
-                + "|" + subscription.getSubscribedDestination()
-                + "|" + subscription.getProtocolType().name()
-                + "|" + subscription.getDestinationType().name();
+                + "|" + subscription.getSubscribedDestination();
     }
 }

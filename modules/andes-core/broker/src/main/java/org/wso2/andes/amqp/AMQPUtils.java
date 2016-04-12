@@ -28,10 +28,8 @@ import org.wso2.andes.kernel.AndesException;
 import org.wso2.andes.kernel.AndesMessageMetadata;
 import org.wso2.andes.kernel.AndesMessagePart;
 import org.wso2.andes.kernel.AndesUtils;
-import org.wso2.andes.kernel.DestinationType;
 import org.wso2.andes.kernel.MessagingEngine;
 import org.wso2.andes.kernel.ProtocolMessage;
-import org.wso2.andes.kernel.ProtocolType;
 import org.wso2.andes.kernel.disruptor.inbound.InboundBindingEvent;
 import org.wso2.andes.kernel.disruptor.inbound.InboundExchangeEvent;
 import org.wso2.andes.kernel.disruptor.inbound.InboundQueueEvent;
@@ -47,9 +45,9 @@ import org.wso2.andes.server.queue.QueueEntry;
 import org.wso2.andes.server.queue.SimpleQueueEntryList;
 import org.wso2.andes.server.store.MessageMetaDataType;
 import org.wso2.andes.server.store.StorableMessageMetaData;
-import org.wso2.andes.server.store.StoredMessage;
 import org.wso2.andes.server.subscription.Subscription;
 import org.wso2.andes.store.StoredAMQPMessage;
+import org.wso2.andes.subscription.AMQPLocalSubscription;
 import org.wso2.andes.subscription.LocalSubscription;
 import org.wso2.andes.subscription.OutboundSubscription;
 
@@ -75,8 +73,6 @@ public class AMQPUtils {
     public static String TOPIC_EXCHANGE_NAME = "amq.topic";
 
     public static String DEFAULT_EXCHANGE_NAME = "<<default>>";
-
-    public static String DEFAULT_ANDES_CHANNEL_IDENTIFIER = "AMQP-Unknown";
 
     /**
      * Max chunk size of the stored content in Andes;
@@ -137,18 +133,6 @@ public class AMQPUtils {
         StoredAMQPMessage message = new StoredAMQPMessage(messageId, metaData);
         AMQMessage amqMessage = new AMQMessage(message);
         return amqMessage;
-    }
-
-    /**
-     * Create a new AMQMessage out of StoredMessage and content
-     * @param storedMessage StoredMessage object
-     * @return instance of AMQMessage
-     */
-    public static AMQMessage getQueueEntryFromStoredMessage(StoredMessage<MessageMetaData> storedMessage,
-                                                            AndesContent content) {
-        QpidStoredMessage<MessageMetaData> message = new QpidStoredMessage<>(
-                storedMessage, content);
-        return new AMQMessage(message);
     }
 
     /**
@@ -284,22 +268,10 @@ public class AMQPUtils {
         OutboundSubscription amqpDeliverySubscription = new AMQPLocalSubscription(queue, subscription, queue
                 .isDurable(), isBoundToTopic);
 
-        DestinationType destinationType;
-
-        if (isBoundToTopic) {
-            if (queue.isDurable()) {
-                destinationType = DestinationType.DURABLE_TOPIC;
-            } else {
-                destinationType = DestinationType.TOPIC;
-            }
-        } else {
-            destinationType = DestinationType.QUEUE;
-        }
-
         LocalSubscription localSubscription = AndesUtils.createLocalSubscription(amqpDeliverySubscription,
-                subscriptionID, destination, queue.isExclusive(), queue.isDurable(),
+                subscriptionID, destination, isBoundToTopic, queue.isExclusive(), queue.isDurable(),
                 subscribedNode, subscribeTime, queue.getName(), queueOwner, queueBoundExchangeName,
-                queueBoundExchangeType, isqueueBoundExchangeAutoDeletable, subscription.isActive(), destinationType);
+                queueBoundExchangeType, isqueueBoundExchangeAutoDeletable, subscription.isActive());
 
         return localSubscription;
     }
@@ -342,13 +314,11 @@ public class AMQPUtils {
             // message content can be returned as null if a sudden queue purge occurs and clears all message content in store.
             // This has to be handled.
             if (messagePart.getData() != null) {
-
+//                dst.put(messagePart.getData(), positionToReadFromChunk, numOfBytesToRead);
                 messagePart.getData().clear();
                 ByteBuf slice=wrappedBuffer(messagePart.getData()).slice(positionToReadFromChunk,numOfBytesToRead);
                 slice.clear();
                 dst.put(slice.nioBuffer(0,slice.capacity()));
-
-                //  dst.put(messagePart.getData(), positionToReadFromChunk, numOfBytesToRead);
             }
 
             written += numOfBytesToRead;
@@ -409,17 +379,9 @@ public class AMQPUtils {
      * @return andes queue
      */
     public static InboundQueueEvent createAndesQueue(AMQQueue amqQueue) {
-        DestinationType destinationType;
-
-        if (amqQueue.checkIfBoundToTopicExchange()) {
-            destinationType = DestinationType.TOPIC;
-        } else {
-            destinationType = DestinationType.QUEUE;
-        }
-
         return new InboundQueueEvent(amqQueue.getName(),
                 (amqQueue.getOwner() != null) ? amqQueue.getOwner().toString() : "null",
-                amqQueue.isExclusive(), amqQueue.isDurable(), ProtocolType.AMQP, destinationType);
+                amqQueue.isExclusive(), amqQueue.isDurable(), amqQueue.checkIfBoundToTopicExchange());
     }
 
     /**

@@ -85,7 +85,7 @@ public class ContentChunkHandlerTest {
             String contentPart = contentPartBuilder.toString();
             contentBuilder.append(contentPart);
 
-            //part.setData(contentPart.getBytes());
+//            part.setData(contentPart.getBytes());
             part.setOffSet(offset);
             part.setDataLength(originalChunkSize);
             originalChunks.add(part);
@@ -105,7 +105,7 @@ public class ContentChunkHandlerTest {
             assertEquals("Chunk size mismatch", maxChunkSize, messagePart.getDataLength());
             assertEquals("Incorrect message id", messageId, messagePart.getMessageID());
             assertEquals("Incorrect offset", offset, messagePart.getOffset());
-            //contentBuilder.append(new String(messagePart.getData()));
+//            contentBuilder.append(new String(messagePart.getData()));
             offset = offset + maxChunkSize;
         }
 
@@ -116,7 +116,7 @@ public class ContentChunkHandlerTest {
             assertEquals("Chunk size mismatch", remainingLength, messagePart.getDataLength());
             assertEquals("Incorrect message id", messageId, messagePart.getMessageID());
             assertEquals("Incorrect offset", offset, messagePart.getOffset());
-            //contentBuilder.append(new String(messagePart.getData()));
+//            contentBuilder.append(new String(messagePart.getData()));
         }
 
         assertEquals("Content mismatch", content, contentBuilder.toString());

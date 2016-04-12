@@ -111,13 +111,12 @@ public final class AndesMQTTBridge {
      * @param event               whether the subscription is initiated or disconnected unexpectedly
      *                            {@link org.dna.mqtt.wso2.AndesMQTTBridge.SubscriptionEvent}
      */
-    public void onClientDisconnection(String mqttClientChannelID, String topic, String username, SubscriptionEvent
-            event) {
+    public void onSubscriberDisconnection(String mqttClientChannelID, String topic, String username, SubscriptionEvent event) {
         try {
-            MQTTopicManager.getInstance().removeOrDisconnectClient(mqttClientChannelID, topic, username, event);
+            MQTTopicManager.getInstance().removeOrDisconnectTopicSubscription(mqttClientChannelID, topic, username, event);
         } catch (MQTTException e) {
             //Will capture the exception here and will not throw it any further
-            final String message = "Error while disconnecting the client with the id " + mqttClientChannelID;
+            final String message = "Error while disconnecting the subscription with the id " + mqttClientChannelID;
             log.error(message, e);
         }
     }
@@ -200,29 +199,27 @@ public final class AndesMQTTBridge {
     }
 
     /**
-     * When a message is sent the notification to the subscriber channels managed by the MQTT library will be notified.
+     * When a message is sent the notification to the subscriber channels managed by the MQTT library will be notified
      *
-     * @param subscribeDestination The destination the subscriber subscribed to which may include wildcards
-     * @param messageDestination The destination the message was published to
+     * @param topic     the topic of the message that the subscribers should be notified of
      * @param qos       the level of QOS the message was subscribed to
      * @param message   the content of the message
      * @param retain    should this message be persisted
-     * @param messageID the identity of the message
      * @param channelID the unique id of the subscription created by the protocol
+     * @param messageID the identity of the message
      */
-    public void distributeMessageToSubscriptions(String subscribeDestination, String messageDestination, int qos, ByteBuffer message,
-                                                 boolean retain, int messageID, String channelID) throws MQTTException {
+    public void distributeMessageToSubscriptions(String topic, int qos, ByteBuffer message, boolean retain,
+                                                 int messageID, String channelID) throws MQTTException {
         if (null != mqttProtocolHandlingEngine) {
             //Need to set do a re position of bytes for writing to the buffer
             //Since the buffer needs to be initialized for reading before sending out
             final int bytesPosition = 0;
             message.position(bytesPosition);
             AbstractMessage.QOSType qosType = MQTTUtils.getQOSType(qos);
-
-            mqttProtocolHandlingEngine.publishToSubscriber(subscribeDestination, messageDestination, qosType, message,
-                    retain, messageID, channelID);
+            // mqttProtocolHandlingEngine.publish2Subscribers(topic, qosType, message, retain, andesMessageID);
+            mqttProtocolHandlingEngine.publishToSubscriber(topic, qosType, message, retain, messageID, channelID);
             if (log.isDebugEnabled()) {
-                log.debug("The message with id " + messageID + " for destination " + messageDestination +
+                log.debug("The message with id " + messageID + " for topic " + topic +
                         " was notified to its subscribers");
             }
 

@@ -156,7 +156,7 @@ public class DeliveryEventHandler implements EventHandler<DeliveryEventData> {
             throws AndesException {
         if (subscription.isDurable()) {
             //re-queue message to andes core so that it can find other subscriber to deliver
-            MessagingEngine.getInstance().reQueueMessage(message, subscription.getDestinationType());
+            MessagingEngine.getInstance().reQueueMessage(message);
         } else {
             if (!message.isOKToDispose()) {
                 log.warn("Cannot send message id= " + message.getMessageID() + " as subscriber is closed");

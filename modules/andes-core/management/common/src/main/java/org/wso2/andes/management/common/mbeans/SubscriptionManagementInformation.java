@@ -20,8 +20,6 @@ package org.wso2.andes.management.common.mbeans;
 import org.wso2.andes.management.common.mbeans.annotations.MBeanAttribute;
 import org.wso2.andes.management.common.mbeans.annotations.MBeanOperationParameter;
 
-import javax.management.MBeanException;
-
 /**
  * This is the interface for implementing subscription related information transfer to the UI.
  */
@@ -33,28 +31,31 @@ public interface SubscriptionManagementInformation {
      * MBean service to get filtered queue subscriptions
      * @param isDurable of type String (acceptable values => * | true | false)
      * @param isActive of type String (acceptable values => * | true | false)
-     * @param protocolType The protocol type of the subscriptions
-     * @param destinationType The destination type of the subscriptions
-     * @return array of queue subscriptions
+     * @return
      */
-    @MBeanAttribute(name="AllSubscriptions",description = "All subscriptions")
-    String[] getSubscriptions(
+    @MBeanAttribute(name="AllQueueSubscriptions",description = "All queue subscriptions")
+    String[] getAllQueueSubscriptions(
             @MBeanOperationParameter(name = "isDurable" ,description = "get durable ?") String isDurable,
-            @MBeanOperationParameter(name = "isActive" ,description = "get active ?") String isActive,
-            @MBeanOperationParameter(
-                    name = "protocolType", description = "protocol of subscriptions") String protocolType,
-            @MBeanOperationParameter(
-                    name = "destinationType",
-                    description = "Destination type of the subscriptions") String destinationType)
-    throws MBeanException;
+            @MBeanOperationParameter(name = "isActive" ,description = "get active ?") String isActive);
+
+    /**
+     * MBean service to get filtered topic subscriptions
+     * @param isDurable of type String (acceptable values => * | true | false)
+     * @param isActive of type String (acceptable values => * | true | false)
+     * @return
+     */
+    @MBeanAttribute(name="TopicSubscriptions",description = "All topic subscriptions")
+    String[] getAllTopicSubscriptions(
+            @MBeanOperationParameter(name = "isDurable" ,description = "get durable ?") String isDurable,
+            @MBeanOperationParameter(name = "isActive" ,description = "get active ?") String isActive);
 
 
     /**
      * MBean service to get Pending Message count for a given destination
-     * @param subscribedNode ID of the subscribed node
-     * @param msgPattern queue/topic
-     * @param destinationName destination querying for message count
-     * @return pending message count for destination
+     * @param subscribedNode
+     * @param msgPattern
+     * @param destinationName
+     * @return
      */
     //TODO: there is noting like message count of node now
     @Deprecated
@@ -64,21 +65,4 @@ public interface SubscriptionManagementInformation {
             @MBeanOperationParameter(name = "msgPattern" ,description = "queue or topic or any other pattern") String msgPattern,
             @MBeanOperationParameter(name = "destinationName" ,description = "destination name") String destinationName);
 
-    /**
-     * MBean service to remove a subscription forcefully
-     *
-     * @param subscriptionId ID of the subscription
-     * @param destinationName destination subscription is bound
-     */
-    @MBeanAttribute(name = "RemoveSubscription", description = "Remove a subscription forcefully")
-    void removeSubscription(
-            @MBeanOperationParameter(name = "subscriptionId", description = "ID of the Subscription to remove") String
-                    subscriptionId,
-            @MBeanOperationParameter(name = "destinationName", description = "Subscribed destination name") String
-                    destinationName,
-            @MBeanOperationParameter(
-                    name = "protocolType", description = "protocol of subscriptions") String protocolType,
-            @MBeanOperationParameter(
-                    name = "destinationType",
-                    description = "Destination type of the subscriptions") String destinationType);
 }

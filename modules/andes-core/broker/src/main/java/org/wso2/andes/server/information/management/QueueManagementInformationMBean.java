@@ -30,18 +30,17 @@ import org.wso2.andes.configuration.AndesConfigurationManager;
 import org.wso2.andes.configuration.enums.AndesConfiguration;
 import org.wso2.andes.framing.AMQShortString;
 import org.wso2.andes.framing.BasicContentHeaderProperties;
+import org.wso2.andes.kernel.DisablePubAckImpl;
 import org.wso2.andes.kernel.Andes;
 import org.wso2.andes.kernel.AndesChannel;
+import org.wso2.andes.kernel.FlowControlListener;
 import org.wso2.andes.kernel.AndesContext;
 import org.wso2.andes.kernel.AndesException;
-import org.wso2.andes.kernel.AndesMessage;
 import org.wso2.andes.kernel.AndesMessageMetadata;
 import org.wso2.andes.kernel.AndesMessagePart;
+import org.wso2.andes.kernel.AndesMessage;
 import org.wso2.andes.kernel.AndesUtils;
-import org.wso2.andes.kernel.DestinationType;
-import org.wso2.andes.kernel.DisablePubAckImpl;
-import org.wso2.andes.kernel.FlowControlListener;
-import org.wso2.andes.kernel.ProtocolType;
+import org.wso2.andes.kernel.AndesSubscription;
 import org.wso2.andes.kernel.disruptor.inbound.InboundQueueEvent;
 import org.wso2.andes.management.common.mbeans.QueueManagementInformation;
 import org.wso2.andes.management.common.mbeans.annotations.MBeanOperationParameter;
@@ -72,9 +71,10 @@ import javax.management.openmbean.SimpleType;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Collections;
 
 /**
  * This class contains all operations such as addition, deletion, purging, browsing, etc. that are invoked by the UI
@@ -94,8 +94,6 @@ public class QueueManagementInformationMBean extends AMQManagedObject implements
     private final QueueRegistry queueRegistry;
 
     private final String PURGE_QUEUE_ERROR = "Error in purging queue : ";
-
-    private final String MESSAGE_COUNT_RETRIEVE_ERROR = "Error while retrieving message count queue : ";
 
     // OpenMBean data types for viewMessageContent method
     private static CompositeType _msgContentType = null;
@@ -276,7 +274,7 @@ public class QueueManagementInformationMBean extends AMQManagedObject implements
             // an exception if permission is denied.
 
             InboundQueueEvent andesQueue = AMQPUtils.createAndesQueue(queue);
-            int purgedMessageCount = Andes.getInstance().purgeQueue(andesQueue);
+            int purgedMessageCount = Andes.getInstance().purgeQueue(andesQueue, false);
             log.info("Total message count purged for queue (from store) : " + queueName + " : " +
                     purgedMessageCount + ". All in memory messages received before the purge call" +
                     " are abandoned from delivery phase. ");
@@ -305,18 +303,18 @@ public class QueueManagementInformationMBean extends AMQManagedObject implements
                                                   @MBeanOperationParameter(name = "destinationQueueName",
             description = "The Dead Letter Queue Name for the selected tenant") String destinationQueueName) {
 
-        List<AndesMessageMetadata> messageMetadataList = new ArrayList<>(andesMetadataIDs.length);
+        List<AndesMessageMetadata> removableMetadataList = new ArrayList<>(andesMetadataIDs.length);
 
         for (long andesMetadataID : andesMetadataIDs) {
             AndesMessageMetadata messageToRemove = new AndesMessageMetadata(andesMetadataID, null, false);
             messageToRemove.setStorageQueueName(destinationQueueName);
             messageToRemove.setDestination(destinationQueueName);
-            messageMetadataList.add(messageToRemove);
+            removableMetadataList.add(messageToRemove);
         }
 
         // Deleting messages which are in the list.
         try {
-            Andes.getInstance().deleteMessagesFromDLC(messageMetadataList);
+            Andes.getInstance().deleteMessages(removableMetadataList, false);
         } catch (AndesException e) {
             throw new RuntimeException("Error deleting messages from Dead Letter Channel", e);
         }
@@ -353,8 +351,7 @@ public class QueueManagementInformationMBean extends AMQManagedObject implements
                     String destination = metadata.getDestination();
 
                     metadata.setStorageQueueName(AndesUtils.getStorageQueueForDestination(destination,
-                            ClusterResourceHolder.getInstance().getClusterManager().getMyNodeID(),
-                            DestinationType.QUEUE));
+                            ClusterResourceHolder.getInstance().getClusterManager().getMyNodeID(), false));
 
                     messagesToRemove.add(metadata);
 
@@ -372,7 +369,7 @@ public class QueueManagementInformationMBean extends AMQManagedObject implements
                 }
 
                 // Delete old messages
-                Andes.getInstance().deleteMessagesFromDLC(messagesToRemove);
+                Andes.getInstance().deleteMessages(messagesToRemove, false);
 
                 if (interruptedByFlowControl) {
                     // Throw this out so UI will show this to the user as an error message.
@@ -424,8 +421,7 @@ public class QueueManagementInformationMBean extends AMQManagedObject implements
                     // Set the new destination queue
                     metadata.setDestination(newDestinationQueueName);
                     metadata.setStorageQueueName(AndesUtils.getStorageQueueForDestination(newDestinationQueueName,
-                            ClusterResourceHolder.getInstance().getClusterManager().getMyNodeID(),
-                            DestinationType.QUEUE));
+                            ClusterResourceHolder.getInstance().getClusterManager().getMyNodeID(), false));
 
                     metadata.updateMetadata(newDestinationQueueName, AMQPUtils.DIRECT_EXCHANGE_NAME);
                     AndesMessageMetadata clonedMetadata = metadata.shallowCopy(metadata.getMessageID());
@@ -444,7 +440,7 @@ public class QueueManagementInformationMBean extends AMQManagedObject implements
                 }
 
                 // Delete old messages
-                Andes.getInstance().deleteMessagesFromDLC(messagesToRemove);
+                Andes.getInstance().deleteMessages(messagesToRemove, false);
 
                 if (interruptedByFlowControl) {
                     // Throw this out so UI will show this to the user as an error message.
@@ -791,7 +787,7 @@ public class QueueManagementInformationMBean extends AMQManagedObject implements
      * it is not acceptable
      *
      * */
-    public long getMessageCount(String queueName, String msgPattern) throws MBeanException {
+    public long getMessageCount(String queueName, String msgPattern) {
 
         if (log.isDebugEnabled()) {
             log.debug("Counting at queue : " + queueName);
@@ -808,8 +804,7 @@ public class QueueManagementInformationMBean extends AMQManagedObject implements
             }
 
         } catch (AndesException e) {
-            log.error(MESSAGE_COUNT_RETRIEVE_ERROR + queueName, e);
-            throw new MBeanException(e, MESSAGE_COUNT_RETRIEVE_ERROR + queueName);
+            throw new RuntimeException("Error retrieving message count for the queue : " + queueName, e);
         }
 
         return messageCount;
@@ -820,8 +815,8 @@ public class QueueManagementInformationMBean extends AMQManagedObject implements
      */
     public int getSubscriptionCount( String queueName){
         try {
-            return AndesContext.getInstance().getSubscriptionEngine().numberOfSubscriptionsInCluster(
-                    queueName, ProtocolType.AMQP, DestinationType.QUEUE);
+            return AndesContext.getInstance().getSubscriptionStore().numberOfSubscriptionsInCluster(queueName, false,
+                    AndesSubscription.SubscriptionType.AMQP);
         } catch (Exception e) {
             throw new RuntimeException("Error in getting subscriber count",e);
         }

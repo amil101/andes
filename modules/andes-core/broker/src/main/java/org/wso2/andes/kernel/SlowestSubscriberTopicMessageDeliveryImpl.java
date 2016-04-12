@@ -21,8 +21,9 @@ package org.wso2.andes.kernel;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.wso2.andes.server.store.MessageMetaDataType;
 import org.wso2.andes.subscription.LocalSubscription;
-import org.wso2.andes.subscription.SubscriptionEngine;
+import org.wso2.andes.subscription.SubscriptionStore;
 
 import java.util.*;
 
@@ -33,33 +34,22 @@ import java.util.*;
 public class SlowestSubscriberTopicMessageDeliveryImpl implements MessageDeliveryStrategy {
 
     private static Log log = LogFactory.getLog(SlowestSubscriberTopicMessageDeliveryImpl.class);
-    private SubscriptionEngine subscriptionEngine;
+    private SubscriptionStore subscriptionStore;
 
-    public SlowestSubscriberTopicMessageDeliveryImpl(SubscriptionEngine subscriptionEngine) {
-        this.subscriptionEngine = subscriptionEngine;
+    public SlowestSubscriberTopicMessageDeliveryImpl(SubscriptionStore subscriptionStore) {
+        this.subscriptionStore = subscriptionStore;
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public int deliverMessageToSubscriptions(MessageDeliveryInfo messageDeliveryInfo) throws AndesException {
+    public int deliverMessageToSubscriptions(String destination, Set<DeliverableAndesMetadata> messages) throws
+            AndesException {
 
-        Set<DeliverableAndesMetadata> messages = messageDeliveryInfo.getReadButUndeliveredMessages();
         int sentMessageCount = 0;
         Iterator<DeliverableAndesMetadata> iterator = messages.iterator();
         List<DeliverableAndesMetadata> droppedTopicMessagesList = new ArrayList<>();
-
-        /**
-         * get all relevant type of subscriptions. This call does NOT
-         * return hierarchical subscriptions for the destination. There
-         * are duplicated messages for each different subscribed destination.
-         * For durable topic subscriptions this should return queue subscription
-         * bound to unique queue based on subscription id
-         */
-        Collection<LocalSubscription> subscriptions =
-                subscriptionEngine.getActiveLocalSubscribers(messageDeliveryInfo.getDestination(),
-                        messageDeliveryInfo.getProtocolType(), messageDeliveryInfo.getDestinationType());
 
 
         while (iterator.hasNext()) {
@@ -67,30 +57,42 @@ public class SlowestSubscriberTopicMessageDeliveryImpl implements MessageDeliver
             try {
                 DeliverableAndesMetadata message = iterator.next();
 
-                //All subscription filtering logic for topics goes here
-                List<LocalSubscription> subscriptionsToDeliver = new ArrayList<>();
 
-                for (LocalSubscription subscription : subscriptions) {
+                /**
+                 * get all relevant type of subscriptions. This call does NOT
+                 * return hierarchical subscriptions for the destination. There
+                 * are duplicated messages for each different subscribed destination.
+                 * For durable topic subscriptions this should return queue subscription
+                 * bound to unique queue based on subscription id
+                 */
+                Collection<LocalSubscription> subscriptions4Queue =
+                        subscriptionStore.getActiveLocalSubscribers(destination, message.isTopic());
 
-                    /*
-                     * If this is a topic message, remove all durable topic subscriptions here
-                     * because durable topic subscriptions will get messages via queue path.
-                     * Also need to consider the arrival time of the message. Only topic
-                     * subscribers which appeared before publishing this message should receive it
+                //If this is a topic message, we remove all durable topic subscriptions here.
+                //Because durable topic subscriptions will get messages via queue path.
+                Iterator<LocalSubscription> subscriptionIterator = subscriptions4Queue.iterator();
+                while (subscriptionIterator.hasNext()) {
+                    LocalSubscription subscription = subscriptionIterator.next();
+                    /**
+                     * Here we need to consider the arrival time of the message. Only topic
+                     * subscribers who appeared before publishing this message should receive it
                      */
                     if (subscription.isDurable() || (subscription.getSubscribeTime() > message.getArrivalTime())) {
-                        continue;
+                        subscriptionIterator.remove();
                     }
 
-                    // Avoid sending if the selector of subscriber does not match
-                    if(!subscription.isMessageAcceptedBySelector(message)) {
-                        continue;
+                    // Avoid sending if the subscriber is MQTT and message is not MQTT
+                    if (AndesSubscription.SubscriptionType.MQTT == subscription.getSubscriptionType()
+                            && MessageMetaDataType.META_DATA_MQTT != message.getMetaDataType()) {
+                        subscriptionIterator.remove();
+                        // Avoid sending if the subscriber is AMQP and message is MQTT
+                    } else if (AndesSubscription.SubscriptionType.AMQP == subscription.getSubscriptionType()
+                            && MessageMetaDataType.META_DATA_MQTT == message.getMetaDataType()) {
+                        subscriptionIterator.remove();
                     }
-
-                    subscriptionsToDeliver.add(subscription);
                 }
 
-                if (subscriptionsToDeliver.size() == 0) {
+                if (subscriptions4Queue.size() == 0) {
                     iterator.remove(); // remove buffer
                     droppedTopicMessagesList.add(message);
 
@@ -105,7 +107,7 @@ public class SlowestSubscriberTopicMessageDeliveryImpl implements MessageDeliver
                  * topic subscriber.
                  */
                 boolean allTopicSubscriptionsHasRoom = true;
-                for (LocalSubscription subscription : subscriptionsToDeliver) {
+                for (LocalSubscription subscription : subscriptions4Queue) {
                     if (!subscription.hasRoomToAcceptMessages()) {
                         allTopicSubscriptionsHasRoom = false;
                         break;
@@ -113,10 +115,10 @@ public class SlowestSubscriberTopicMessageDeliveryImpl implements MessageDeliver
                 }
                 if (allTopicSubscriptionsHasRoom) {
 
-                    message.markAsScheduledToDeliver(subscriptionsToDeliver);
+                    message.markAsScheduledToDeliver(subscriptions4Queue);
 
                     //schedule message to all subscribers
-                    for (LocalSubscription localSubscription : subscriptionsToDeliver) {
+                    for (LocalSubscription localSubscription : subscriptions4Queue) {
                         MessageFlusher.getInstance().deliverMessageAsynchronously(localSubscription, message);
                     }
                     iterator.remove();
@@ -126,8 +128,8 @@ public class SlowestSubscriberTopicMessageDeliveryImpl implements MessageDeliver
                     sentMessageCount++;
                 } else {
                     if (log.isDebugEnabled()) {
-                        log.debug("Some subscriptions for destination " + messageDeliveryInfo.getDestination()
-                                + " have max unacked messages " + message.getDestination());
+                        log.debug("Some subscriptions for destination " + destination + " have max unacked " +
+                                "messages " + message.getDestination());
                     }
                     //if we continue message order will break
                     break;

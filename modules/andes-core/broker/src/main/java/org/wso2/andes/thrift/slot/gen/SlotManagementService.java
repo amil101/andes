@@ -26,7 +26,7 @@ public class SlotManagementService {
 
     public SlotInfo getSlotInfo(String queueName, String nodeId) throws org.apache.thrift.TException;
 
-    public void updateMessageId(String queueName, String nodeId, long startMessageId, long endMessageId, long localSafeZone) throws org.apache.thrift.TException;
+    public void updateMessageId(String queueName, String nodeId, long startMessageId, long endMessageId) throws org.apache.thrift.TException;
 
     public boolean deleteSlot(String queueName, SlotInfo slotInfo, String nodeId) throws org.apache.thrift.TException;
 
@@ -49,7 +49,7 @@ public class SlotManagementService {
 
     public void getSlotInfo(String queueName, String nodeId, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.getSlotInfo_call> resultHandler) throws org.apache.thrift.TException;
 
-    public void updateMessageId(String queueName, String nodeId, long startMessageId, long endMessageId, long localSafeZone, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.updateMessageId_call> resultHandler) throws org.apache.thrift.TException;
+    public void updateMessageId(String queueName, String nodeId, long startMessageId, long endMessageId, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.updateMessageId_call> resultHandler) throws org.apache.thrift.TException;
 
     public void deleteSlot(String queueName, SlotInfo slotInfo, String nodeId, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.deleteSlot_call> resultHandler) throws org.apache.thrift.TException;
 
@@ -105,20 +105,19 @@ public class SlotManagementService {
       throw new org.apache.thrift.TApplicationException(org.apache.thrift.TApplicationException.MISSING_RESULT, "getSlotInfo failed: unknown result");
     }
 
-    public void updateMessageId(String queueName, String nodeId, long startMessageId, long endMessageId, long localSafeZone) throws org.apache.thrift.TException
+    public void updateMessageId(String queueName, String nodeId, long startMessageId, long endMessageId) throws org.apache.thrift.TException
     {
-      send_updateMessageId(queueName, nodeId, startMessageId, endMessageId, localSafeZone);
+      send_updateMessageId(queueName, nodeId, startMessageId, endMessageId);
       recv_updateMessageId();
     }
 
-    public void send_updateMessageId(String queueName, String nodeId, long startMessageId, long endMessageId, long localSafeZone) throws org.apache.thrift.TException
+    public void send_updateMessageId(String queueName, String nodeId, long startMessageId, long endMessageId) throws org.apache.thrift.TException
     {
       updateMessageId_args args = new updateMessageId_args();
       args.setQueueName(queueName);
       args.setNodeId(nodeId);
       args.setStartMessageId(startMessageId);
       args.setEndMessageId(endMessageId);
-      args.setLocalSafeZone(localSafeZone);
       sendBase("updateMessageId", args);
     }
 
@@ -272,9 +271,9 @@ public class SlotManagementService {
       }
     }
 
-    public void updateMessageId(String queueName, String nodeId, long startMessageId, long endMessageId, long localSafeZone, org.apache.thrift.async.AsyncMethodCallback<updateMessageId_call> resultHandler) throws org.apache.thrift.TException {
+    public void updateMessageId(String queueName, String nodeId, long startMessageId, long endMessageId, org.apache.thrift.async.AsyncMethodCallback<updateMessageId_call> resultHandler) throws org.apache.thrift.TException {
       checkReady();
-      updateMessageId_call method_call = new updateMessageId_call(queueName, nodeId, startMessageId, endMessageId, localSafeZone, resultHandler, this, ___protocolFactory, ___transport);
+      updateMessageId_call method_call = new updateMessageId_call(queueName, nodeId, startMessageId, endMessageId, resultHandler, this, ___protocolFactory, ___transport);
       this.___currentMethod = method_call;
       ___manager.call(method_call);
     }
@@ -284,14 +283,12 @@ public class SlotManagementService {
       private String nodeId;
       private long startMessageId;
       private long endMessageId;
-      private long localSafeZone;
-      public updateMessageId_call(String queueName, String nodeId, long startMessageId, long endMessageId, long localSafeZone, org.apache.thrift.async.AsyncMethodCallback<updateMessageId_call> resultHandler, org.apache.thrift.async.TAsyncClient client, org.apache.thrift.protocol.TProtocolFactory protocolFactory, org.apache.thrift.transport.TNonblockingTransport transport) throws org.apache.thrift.TException {
+      public updateMessageId_call(String queueName, String nodeId, long startMessageId, long endMessageId, org.apache.thrift.async.AsyncMethodCallback<updateMessageId_call> resultHandler, org.apache.thrift.async.TAsyncClient client, org.apache.thrift.protocol.TProtocolFactory protocolFactory, org.apache.thrift.transport.TNonblockingTransport transport) throws org.apache.thrift.TException {
         super(client, protocolFactory, transport, resultHandler, false);
         this.queueName = queueName;
         this.nodeId = nodeId;
         this.startMessageId = startMessageId;
         this.endMessageId = endMessageId;
-        this.localSafeZone = localSafeZone;
       }
 
       public void write_args(org.apache.thrift.protocol.TProtocol prot) throws org.apache.thrift.TException {
@@ -301,7 +298,6 @@ public class SlotManagementService {
         args.setNodeId(nodeId);
         args.setStartMessageId(startMessageId);
         args.setEndMessageId(endMessageId);
-        args.setLocalSafeZone(localSafeZone);
         args.write(prot);
         prot.writeMessageEnd();
       }
@@ -492,7 +488,6 @@ public class SlotManagementService {
             return false;
         }
 
-
         public getSlotInfo_result getResult(I iface, getSlotInfo_args args) throws org.apache.thrift.TException {
         getSlotInfo_result result = new getSlotInfo_result();
         result.success = iface.getSlotInfo(args.queueName, args.nodeId);
@@ -514,9 +509,9 @@ public class SlotManagementService {
             return false;
         }
 
-      public updateMessageId_result getResult(I iface, updateMessageId_args args) throws org.apache.thrift.TException {
+        public updateMessageId_result getResult(I iface, updateMessageId_args args) throws org.apache.thrift.TException {
         updateMessageId_result result = new updateMessageId_result();
-        iface.updateMessageId(args.queueName, args.nodeId, args.startMessageId, args.endMessageId, args.localSafeZone);
+        iface.updateMessageId(args.queueName, args.nodeId, args.startMessageId, args.endMessageId);
         return result;
       }
     }
@@ -535,7 +530,7 @@ public class SlotManagementService {
             return false;
         }
 
-      public deleteSlot_result getResult(I iface, deleteSlot_args args) throws org.apache.thrift.TException {
+        public deleteSlot_result getResult(I iface, deleteSlot_args args) throws org.apache.thrift.TException {
         deleteSlot_result result = new deleteSlot_result();
         result.success = iface.deleteSlot(args.queueName, args.slotInfo, args.nodeId);
         result.setSuccessIsSet(true);
@@ -557,7 +552,7 @@ public class SlotManagementService {
             return false;
         }
 
-      public reAssignSlotWhenNoSubscribers_result getResult(I iface, reAssignSlotWhenNoSubscribers_args args) throws org.apache.thrift.TException {
+        public reAssignSlotWhenNoSubscribers_result getResult(I iface, reAssignSlotWhenNoSubscribers_args args) throws org.apache.thrift.TException {
         reAssignSlotWhenNoSubscribers_result result = new reAssignSlotWhenNoSubscribers_result();
         iface.reAssignSlotWhenNoSubscribers(args.nodeId, args.queueName);
         return result;
@@ -578,7 +573,7 @@ public class SlotManagementService {
             return false;
         }
 
-      public updateCurrentMessageIdForSafeZone_result getResult(I iface, updateCurrentMessageIdForSafeZone_args args) throws org.apache.thrift.TException {
+        public updateCurrentMessageIdForSafeZone_result getResult(I iface, updateCurrentMessageIdForSafeZone_args args) throws org.apache.thrift.TException {
         updateCurrentMessageIdForSafeZone_result result = new updateCurrentMessageIdForSafeZone_result();
         result.success = iface.updateCurrentMessageIdForSafeZone(args.messageId, args.nodeId);
         result.setSuccessIsSet(true);
@@ -600,7 +595,7 @@ public class SlotManagementService {
             return false;
         }
 
-      public clearAllActiveSlotRelationsToQueue_result getResult(I iface, clearAllActiveSlotRelationsToQueue_args args) throws org.apache.thrift.TException {
+        public clearAllActiveSlotRelationsToQueue_result getResult(I iface, clearAllActiveSlotRelationsToQueue_args args) throws org.apache.thrift.TException {
         clearAllActiveSlotRelationsToQueue_result result = new clearAllActiveSlotRelationsToQueue_result();
         iface.clearAllActiveSlotRelationsToQueue(args.queueName);
         return result;
@@ -1299,21 +1294,18 @@ public class SlotManagementService {
     private static final org.apache.thrift.protocol.TField NODE_ID_FIELD_DESC = new org.apache.thrift.protocol.TField("nodeId", org.apache.thrift.protocol.TType.STRING, (short)2);
     private static final org.apache.thrift.protocol.TField START_MESSAGE_ID_FIELD_DESC = new org.apache.thrift.protocol.TField("startMessageId", org.apache.thrift.protocol.TType.I64, (short)3);
     private static final org.apache.thrift.protocol.TField END_MESSAGE_ID_FIELD_DESC = new org.apache.thrift.protocol.TField("endMessageId", org.apache.thrift.protocol.TType.I64, (short)4);
-    private static final org.apache.thrift.protocol.TField LOCAL_SAFE_ZONE_FIELD_DESC = new org.apache.thrift.protocol.TField("localSafeZone", org.apache.thrift.protocol.TType.I64, (short)5);
 
     public String queueName; // required
     public String nodeId; // required
     public long startMessageId; // required
     public long endMessageId; // required
-    public long localSafeZone; // required
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
       QUEUE_NAME((short)1, "queueName"),
       NODE_ID((short)2, "nodeId"),
       START_MESSAGE_ID((short)3, "startMessageId"),
-      END_MESSAGE_ID((short)4, "endMessageId"),
-      LOCAL_SAFE_ZONE((short)5, "localSafeZone");
+      END_MESSAGE_ID((short)4, "endMessageId");
 
       private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -1336,8 +1328,6 @@ public class SlotManagementService {
             return START_MESSAGE_ID;
           case 4: // END_MESSAGE_ID
             return END_MESSAGE_ID;
-          case 5: // LOCAL_SAFE_ZONE
-            return LOCAL_SAFE_ZONE;
           default:
             return null;
         }
@@ -1380,8 +1370,7 @@ public class SlotManagementService {
     // isset id assignments
     private static final int __STARTMESSAGEID_ISSET_ID = 0;
     private static final int __ENDMESSAGEID_ISSET_ID = 1;
-    private static final int __LOCALSAFEZONE_ISSET_ID = 2;
-    private BitSet __isset_bit_vector = new BitSet(3);
+    private BitSet __isset_bit_vector = new BitSet(2);
 
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
@@ -1394,8 +1383,6 @@ public class SlotManagementService {
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I64)));
       tmpMap.put(_Fields.END_MESSAGE_ID, new org.apache.thrift.meta_data.FieldMetaData("endMessageId", org.apache.thrift.TFieldRequirementType.DEFAULT, 
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I64)));
-      tmpMap.put(_Fields.LOCAL_SAFE_ZONE, new org.apache.thrift.meta_data.FieldMetaData("localSafeZone", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-          new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I64)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(updateMessageId_args.class, metaDataMap);
     }
@@ -1407,8 +1394,7 @@ public class SlotManagementService {
       String queueName,
       String nodeId,
       long startMessageId,
-      long endMessageId,
-      long localSafeZone)
+      long endMessageId)
     {
       this();
       this.queueName = queueName;
@@ -1417,8 +1403,6 @@ public class SlotManagementService {
       setStartMessageIdIsSet(true);
       this.endMessageId = endMessageId;
       setEndMessageIdIsSet(true);
-      this.localSafeZone = localSafeZone;
-      setLocalSafeZoneIsSet(true);
     }
 
     /**
@@ -1435,7 +1419,6 @@ public class SlotManagementService {
       }
       this.startMessageId = other.startMessageId;
       this.endMessageId = other.endMessageId;
-      this.localSafeZone = other.localSafeZone;
     }
 
     public updateMessageId_args deepCopy() {
@@ -1450,8 +1433,6 @@ public class SlotManagementService {
       this.startMessageId = 0;
       setEndMessageIdIsSet(false);
       this.endMessageId = 0;
-      setLocalSafeZoneIsSet(false);
-      this.localSafeZone = 0;
     }
 
     public String getQueueName() {
@@ -1548,29 +1529,6 @@ public class SlotManagementService {
       __isset_bit_vector.set(__ENDMESSAGEID_ISSET_ID, value);
     }
 
-    public long getLocalSafeZone() {
-      return this.localSafeZone;
-    }
-
-    public updateMessageId_args setLocalSafeZone(long localSafeZone) {
-      this.localSafeZone = localSafeZone;
-      setLocalSafeZoneIsSet(true);
-      return this;
-    }
-
-    public void unsetLocalSafeZone() {
-      __isset_bit_vector.clear(__LOCALSAFEZONE_ISSET_ID);
-    }
-
-    /** Returns true if field localSafeZone is set (has been assigned a value) and false otherwise */
-    public boolean isSetLocalSafeZone() {
-      return __isset_bit_vector.get(__LOCALSAFEZONE_ISSET_ID);
-    }
-
-    public void setLocalSafeZoneIsSet(boolean value) {
-      __isset_bit_vector.set(__LOCALSAFEZONE_ISSET_ID, value);
-    }
-
     public void setFieldValue(_Fields field, Object value) {
       switch (field) {
       case QUEUE_NAME:
@@ -1605,14 +1563,6 @@ public class SlotManagementService {
         }
         break;
 
-      case LOCAL_SAFE_ZONE:
-        if (value == null) {
-          unsetLocalSafeZone();
-        } else {
-          setLocalSafeZone((Long)value);
-        }
-        break;
-
       }
     }
 
@@ -1629,9 +1579,6 @@ public class SlotManagementService {
 
       case END_MESSAGE_ID:
         return Long.valueOf(getEndMessageId());
-
-      case LOCAL_SAFE_ZONE:
-        return Long.valueOf(getLocalSafeZone());
 
       }
       throw new IllegalStateException();
@@ -1652,8 +1599,6 @@ public class SlotManagementService {
         return isSetStartMessageId();
       case END_MESSAGE_ID:
         return isSetEndMessageId();
-      case LOCAL_SAFE_ZONE:
-        return isSetLocalSafeZone();
       }
       throw new IllegalStateException();
     }
@@ -1704,15 +1649,6 @@ public class SlotManagementService {
         if (!(this_present_endMessageId && that_present_endMessageId))
           return false;
         if (this.endMessageId != that.endMessageId)
-          return false;
-      }
-
-      boolean this_present_localSafeZone = true;
-      boolean that_present_localSafeZone = true;
-      if (this_present_localSafeZone || that_present_localSafeZone) {
-        if (!(this_present_localSafeZone && that_present_localSafeZone))
-          return false;
-        if (this.localSafeZone != that.localSafeZone)
           return false;
       }
 
@@ -1772,16 +1708,6 @@ public class SlotManagementService {
           return lastComparison;
         }
       }
-      lastComparison = Boolean.valueOf(isSetLocalSafeZone()).compareTo(typedOther.isSetLocalSafeZone());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      if (isSetLocalSafeZone()) {
-        lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.localSafeZone, typedOther.localSafeZone);
-        if (lastComparison != 0) {
-          return lastComparison;
-        }
-      }
       return 0;
     }
 
@@ -1829,14 +1755,6 @@ public class SlotManagementService {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case 5: // LOCAL_SAFE_ZONE
-            if (field.type == org.apache.thrift.protocol.TType.I64) {
-              this.localSafeZone = iprot.readI64();
-              setLocalSafeZoneIsSet(true);
-            } else { 
-              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
           default:
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
         }
@@ -1867,9 +1785,6 @@ public class SlotManagementService {
       oprot.writeFieldEnd();
       oprot.writeFieldBegin(END_MESSAGE_ID_FIELD_DESC);
       oprot.writeI64(this.endMessageId);
-      oprot.writeFieldEnd();
-      oprot.writeFieldBegin(LOCAL_SAFE_ZONE_FIELD_DESC);
-      oprot.writeI64(this.localSafeZone);
       oprot.writeFieldEnd();
       oprot.writeFieldStop();
       oprot.writeStructEnd();
@@ -1902,10 +1817,6 @@ public class SlotManagementService {
       if (!first) sb.append(", ");
       sb.append("endMessageId:");
       sb.append(this.endMessageId);
-      first = false;
-      if (!first) sb.append(", ");
-      sb.append("localSafeZone:");
-      sb.append(this.localSafeZone);
       first = false;
       sb.append(")");
       return sb.toString();

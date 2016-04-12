@@ -21,8 +21,9 @@ package org.wso2.andes.kernel;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.wso2.andes.server.store.MessageMetaDataType;
 import org.wso2.andes.subscription.LocalSubscription;
-import org.wso2.andes.subscription.SubscriptionEngine;
+import org.wso2.andes.subscription.SubscriptionStore;
 
 import java.util.*;
 
@@ -33,64 +34,63 @@ import java.util.*;
 public class NoLossBurstTopicMessageDeliveryImpl implements MessageDeliveryStrategy {
 
     private static Log log = LogFactory.getLog(NoLossBurstTopicMessageDeliveryImpl.class);
-    private SubscriptionEngine subscriptionEngine;
+    private SubscriptionStore subscriptionStore;
 
-    public NoLossBurstTopicMessageDeliveryImpl(SubscriptionEngine subscriptionEngine) {
-        this.subscriptionEngine = subscriptionEngine;
+    public NoLossBurstTopicMessageDeliveryImpl(SubscriptionStore subscriptionStore) {
+        this.subscriptionStore = subscriptionStore;
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public int deliverMessageToSubscriptions(MessageDeliveryInfo messageDeliveryInfo) throws AndesException {
-
-        Set<DeliverableAndesMetadata> messages = messageDeliveryInfo.getReadButUndeliveredMessages();
+    public int deliverMessageToSubscriptions(String destination, Set<DeliverableAndesMetadata> messages) throws
+            AndesException {
         int sentMessageCount = 0;
         Iterator<DeliverableAndesMetadata> iterator = messages.iterator();
         List<DeliverableAndesMetadata> droppedTopicMessagesList = new ArrayList<>();
 
-        /**
-         * get all relevant type of subscriptions. This call does NOT
-         * return hierarchical subscriptions for the destination. There
-         * are duplicated messages for each different subscribed destination.
-         * For durable topic subscriptions this should return queue subscription
-         * bound to unique queue based on subscription id
-         */
-        Collection<LocalSubscription> subscriptions =
-                subscriptionEngine.getActiveLocalSubscribers(messageDeliveryInfo.getDestination(),
-                        messageDeliveryInfo.getProtocolType(), messageDeliveryInfo.getDestinationType());
 
         while (iterator.hasNext()) {
 
             try {
                 DeliverableAndesMetadata message = iterator.next();
 
-                List<LocalSubscription> subscriptionsToDeliver = new ArrayList<>();
+                /**
+                 * get all relevant type of subscriptions. This call does NOT
+                 * return hierarchical subscriptions for the destination. There
+                 * are duplicated messages for each different subscribed destination.
+                 * For durable topic subscriptions this should return queue subscription
+                 * bound to unique queue based on subscription id
+                 */
+                Collection<LocalSubscription> subscriptions4Queue =
+                        subscriptionStore.getActiveLocalSubscribers(destination, message.isTopic());
 
-
-
-                //All subscription filtering logic for topics goes here
-                for (LocalSubscription subscription : subscriptions) {
-                    /*
-                     * Consider the arrival time of the message. Only topic
-                     * subscribers which appeared before publishing this message should receive it
+                //If this is a topic message, we remove all durable topic subscriptions here.
+                //Because durable topic subscriptions will get messages via queue path.
+                Iterator<LocalSubscription> subscriptionIterator = subscriptions4Queue.iterator();
+                while (subscriptionIterator.hasNext()) {
+                    LocalSubscription subscription = subscriptionIterator.next();
+                    /**
+                     * Here we need to consider the arrival time of the message. Only topic
+                     * subscribers who appeared before publishing this message should receive it
                      */
-                    if ((subscription.getSubscribeTime() > message.getArrivalTime())
-                            || !subscription.getSubscribedDestination().equals(messageDeliveryInfo.getDestination())) {
-                        // In wild cards, there can be others subscribers here as well
-                        continue;
+                    if (subscription.isDurable() || (subscription.getSubscribeTime() > message.getArrivalTime())) {
+                        subscriptionIterator.remove();
                     }
 
-                    // Avoid sending if the selector of subscriber does not match
-                    if(!subscription.isMessageAcceptedBySelector(message)) {
-                        continue;
+                    // Avoid sending if the subscriber is MQTT and message is not MQTT
+                    if (AndesSubscription.SubscriptionType.MQTT == subscription.getSubscriptionType()
+                            && MessageMetaDataType.META_DATA_MQTT != message.getMetaDataType()) {
+                        subscriptionIterator.remove();
+                        // Avoid sending if the subscriber is AMQP and message is MQTT
+                    } else if (AndesSubscription.SubscriptionType.AMQP == subscription.getSubscriptionType()
+                            && MessageMetaDataType.META_DATA_MQTT == message.getMetaDataType()) {
+                        subscriptionIterator.remove();
                     }
-
-                    subscriptionsToDeliver.add(subscription);
                 }
 
-                if (subscriptionsToDeliver.size() == 0) {
+                if (subscriptions4Queue.size() == 0) {
                     iterator.remove(); // remove buffer
                     droppedTopicMessagesList.add(message);
 
@@ -98,7 +98,7 @@ public class NoLossBurstTopicMessageDeliveryImpl implements MessageDeliveryStrat
                 }
 
                 boolean allTopicSubscriptionsSaturated = true;
-                for (LocalSubscription subscription : subscriptionsToDeliver) {
+                for (LocalSubscription subscription : subscriptions4Queue) {
                     if (subscription.hasRoomToAcceptMessages()) {
                         allTopicSubscriptionsSaturated = false;
                         break;
@@ -113,18 +113,15 @@ public class NoLossBurstTopicMessageDeliveryImpl implements MessageDeliveryStrat
                     break;
                 }
 
-                message.markAsScheduledToDeliver(subscriptionsToDeliver);
+                message.markAsScheduledToDeliver(subscriptions4Queue);
 
-                for (LocalSubscription localSubscription : subscriptionsToDeliver) {
+                for (LocalSubscription localSubscription : subscriptions4Queue) {
                     MessageFlusher.getInstance().deliverMessageAsynchronously(localSubscription, message);
                 }
-
                 iterator.remove();
-
                 if (log.isDebugEnabled()) {
                     log.debug("Removing Scheduled to send message from buffer. MsgId= " + message.getMessageID());
                 }
-
                 sentMessageCount++;
 
 

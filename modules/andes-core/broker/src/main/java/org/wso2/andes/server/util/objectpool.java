@@ -11,36 +11,23 @@ import org.apache.log4j.Logger;
 public class objectpool {
 
     private static final Logger log = Logger.getLogger(objectpool.class);
-   private  ByteBuf bb ;
-    private ByteBufAllocator alloc=null;
-
+    private ByteBufAllocator alloc = null;
     private static objectpool instance = new objectpool();
-    private objectpool(){}
 
-    public static objectpool getInstance(){
+    private objectpool() {
+    }
+
+    public static objectpool getInstance() {
         return instance;
     }
 
-    public ByteBuf getBytebufContent(){
-return bb;
-    }
-
-    public void setBytebufContent(ByteBuf bb){
-        this.bb=bb;
-    }
-
-    public void releasebuf(ByteBuf bb){
-   bb.release();
-    }
-    public  ByteBuf setDirectMemory(int payloadSize){
-       if(alloc==null){alloc = PooledByteBufAllocator.DEFAULT;
-           log.warn("object pool memory allocated successfully!");}
-       ByteBuf bb = alloc.directBuffer(payloadSize);
-
-      //         bb = Unpooled.buffer(payloadSize);
+    public ByteBuf setDirectMemory(int payloadSize) {
+        if (alloc == null) {
+            alloc = PooledByteBufAllocator.DEFAULT;
+            log.warn("object pool memory allocated successfully!");
+        }
+        ByteBuf bb = alloc.directBuffer(payloadSize);
         return bb;
 
     }
-
-
 }

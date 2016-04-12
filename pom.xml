@@ -193,7 +193,7 @@
                 <version>${mina-filter-ssl.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.wso2.orbit.com.lmax</groupId>
+                <groupId>org.wso2.lmax</groupId>
                 <artifactId>disruptor</artifactId>
                 <version>${disruptor.version}</version>
             </dependency>
@@ -534,9 +534,9 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <carbon.kernel.version>4.4.3</carbon.kernel.version>
+        <carbon.kernel.version>4.4.2</carbon.kernel.version>
         <project.scm.id>wso2-scm-server</project.scm.id>
-        <andes.version>3.0.5</andes.version>
+        <andes.version>3.0.0</andes.version>
         <commons-cli.version>1.0</commons-cli.version>
         <commons-configuration.version>1.10</commons-configuration.version>
         <commons-lang.version>2.6</commons-lang.version>
@@ -570,7 +570,7 @@
         <junit.version>4.7</junit.version>
         <log4j.version>1.2.16</log4j.version>
         <maven-ant-tasks.version>2.1.1</maven-ant-tasks.version>
-        <disruptor.version>3.3.2.wso2v2</disruptor.version>
+        <disruptor.version>3.3.0.wso2v1</disruptor.version>
         <org.eclipse.core.commands.version>3.5.0.I20090525-2000</org.eclipse.core.commands.version>
         <org.eclipse.core.contenttype.version>3.4.100.v20100505-1235</org.eclipse.core.contenttype.version>
         <beans.version>1.0.0-I20070606-0010</beans.version>
@@ -606,7 +606,7 @@
         <hawtdb.version>1.6</hawtdb.version>
         <hawtbuf.version>1.9</hawtbuf.version>
         <hazelcast.version>3.5.0.wso2v1</hazelcast.version>
-        <org.wso2.carbon.metrics.manager.version>1.2.0</org.wso2.carbon.metrics.manager.version>
+        <org.wso2.carbon.metrics.manager.version>1.1.1</org.wso2.carbon.metrics.manager.version>
         <libthrift.version>0.9.2.wso2v1</libthrift.version>
         <h2.version>1.2.140</h2.version>
         <naming-factory.version>5.5.15</naming-factory.version>

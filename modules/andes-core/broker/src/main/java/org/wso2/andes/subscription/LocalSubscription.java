@@ -20,18 +20,14 @@ package org.wso2.andes.subscription;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.wso2.andes.amqp.AMQPLocalSubscription;
 import org.wso2.andes.configuration.AndesConfigurationManager;
 import org.wso2.andes.configuration.enums.AndesConfiguration;
 import org.wso2.andes.kernel.AndesContent;
 import org.wso2.andes.kernel.AndesException;
-import org.wso2.andes.kernel.AndesMessageMetadata;
 import org.wso2.andes.kernel.DeliverableAndesMetadata;
-import org.wso2.andes.kernel.DestinationType;
 import org.wso2.andes.kernel.MessageStatus;
 import org.wso2.andes.kernel.MessagingEngine;
 import org.wso2.andes.kernel.ProtocolMessage;
-import org.wso2.andes.kernel.ProtocolType;
 import org.wso2.andes.mqtt.MQTTLocalSubscription;
 
 import java.util.ArrayList;
@@ -69,6 +65,7 @@ public class LocalSubscription  extends BasicSubscription implements InboundSubs
      * @param subscription protocol subscription to send messages
      * @param subscriptionID ID of the subscription (unique)
      * @param destination subscription bound destination
+     * @param isBoundToTopic true if subscription is a topic subscription (durable/non-durable)
      * @param isExclusive true is the subscription is exclusive
      * @param isDurable true if subscription is durable (should preserve messages in absence)
      * @param subscribedNode identifier of the node actual subscription exists
@@ -80,28 +77,26 @@ public class LocalSubscription  extends BasicSubscription implements InboundSubs
      * @param isTargetQueueBoundExchangeAutoDeletable is queue subscription is bound to is auto deletable (this can
      *                                                be true if subscription is non durable)
      * @param hasExternalSubscriptions true if subscription is active (has a live TCP connection)
-     * @param destinationType The type of the destination
      */
     public LocalSubscription(OutboundSubscription subscription, String subscriptionID, String destination,
-                             boolean isExclusive, boolean isDurable,
-                             String subscribedNode, long subscribeTime, String targetQueue, String targetQueueOwner,
-                             String targetQueueBoundExchange,
+                             boolean isBoundToTopic, boolean isExclusive, boolean isDurable,
+                             String subscribedNode, long subscribeTime, String targetQueue, String targetQueueOwner, String targetQueueBoundExchange,
                              String targetQueueBoundExchangeType, Short isTargetQueueBoundExchangeAutoDeletable,
-                             boolean hasExternalSubscriptions, DestinationType destinationType) {
+                             boolean hasExternalSubscriptions) {
 
-        super(subscriptionID, destination, isExclusive, isDurable, subscribedNode, subscribeTime,
+        super(subscriptionID, destination, isBoundToTopic, isExclusive, isDurable, subscribedNode, subscribeTime,
                 targetQueue, targetQueueOwner, targetQueueBoundExchange, targetQueueBoundExchangeType,
-                isTargetQueueBoundExchangeAutoDeletable, hasExternalSubscriptions, destinationType);
+                isTargetQueueBoundExchangeAutoDeletable, hasExternalSubscriptions);
 
         this.subscription = subscription;
 
         // In case of mock subscriptions, this becomes null
         if (null != subscription) {
-            //We need to keep the protocolType in basic subscription for notification
+            //We need to keep the subscriptionType in basic subscription for notification
             if(subscription instanceof AMQPLocalSubscription) {
-                setProtocolType(ProtocolType.AMQP);
+                setSubscriptionType(SubscriptionType.AMQP);
             } else if(subscription instanceof MQTTLocalSubscription) {
-                setProtocolType(ProtocolType.MQTT);
+                setSubscriptionType(SubscriptionType.MQTT);
             }
 
             setStorageQueueName(subscription.getStorageQueueName(destination, subscribedNode));
@@ -112,15 +107,6 @@ public class LocalSubscription  extends BasicSubscription implements InboundSubs
 
     }
 
-    /**
-     * Forcefully disconnects protocol subscriber from server. This is initiated by a server admin using the management
-     * console.
-     *
-     * @throws AndesException
-     */
-    public void forcefullyDisconnect() throws AndesException {
-        subscription.forcefullyDisconnect();
-    }
 
     /**
      * Send message to the underlying protocol subscriber
@@ -136,17 +122,6 @@ public class LocalSubscription  extends BasicSubscription implements InboundSubs
         // actual message send because if it is not done ack can come BEFORE executing those lines in parallel world
         addMessageToSendingTracker(messageMetadata);
         return subscription.sendMessageToSubscriber(messageMetadata, content);
-    }
-
-    /**
-     * Check if message is accepted by 'selector' set to the subscription.
-     *
-     * @param messageMetadata message to be checked
-     * @return true if message is selected, false otherwise
-     * @throws AndesException on an error
-     */
-    public boolean isMessageAcceptedBySelector(AndesMessageMetadata messageMetadata) throws AndesException {
-        return subscription.isMessageAcceptedBySelector(messageMetadata);
     }
 
 
@@ -313,9 +288,5 @@ public class LocalSubscription  extends BasicSubscription implements InboundSubs
                 append(targetQueue).
                 append(targetQueueBoundExchange).
                 toHashCode();
-    }
-
-    public OutboundSubscription getOutboundSubscription() {
-        return subscription;
     }
 }

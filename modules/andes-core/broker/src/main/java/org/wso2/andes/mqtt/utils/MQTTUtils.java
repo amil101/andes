@@ -17,6 +17,7 @@
  */
 package org.wso2.andes.mqtt.utils;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -32,6 +33,7 @@ import org.wso2.andes.kernel.disruptor.inbound.PubAckHandler;
 import org.wso2.andes.mqtt.MQTTMessageContext;
 import org.wso2.andes.mqtt.MQTTPublisherChannel;
 import org.wso2.andes.server.store.MessageMetaDataType;
+import org.wso2.andes.server.util.objectpool;
 import org.wso2.carbon.utils.multitenancy.MultitenantConstants;
 
 import java.nio.ByteBuffer;
@@ -58,7 +60,6 @@ public class MQTTUtils {
     public static final String SINGLE_LEVEL_WILDCARD = "+";
     public static final String MULTI_LEVEL_WILDCARD = "#";
 
-    public static final String DEFAULT_ANDES_CHANNEL_IDENTIFIER = "MQTT-Unknown";
     /**
      * MQTT Publisher ID
      */
@@ -77,7 +78,7 @@ public class MQTTUtils {
         messageBody.setOffSet(0); //Here we set the offset to 0, but it will be a problem when large messages are sent
         messageBody.setData(message);
         messageBody.setMessageID(messagID);
-        messageBody.setDataLength(message.limit());
+        messageBody.setDataLength(message.capacity());
         return messageBody;
     }
 
@@ -88,6 +89,7 @@ public class MQTTUtils {
      *
      * @param metaData      the information about the published message
      * @param messageID     the identity of the message
+     * @param topic         the topic the message was published
      * @param destination   the definition where the message should be sent to
      * @param persistence   should this message be persisted
      * @param contentLength the length of the message content
@@ -95,11 +97,12 @@ public class MQTTUtils {
      * @return the collective information as a bytes object
      */
     public static byte[] encodeMetaInfo(String metaData, long messageID, long arrivalTime, boolean topic, int qos,
-                                        String destination, boolean persistence, int contentLength) {
+            String destination, boolean persistence, int contentLength) {
         byte[] metaInformation;
-        String information = metaData + "?" + MESSAGE_ID + "=" + messageID + "," + ARRIVAL_TIME + "=" + arrivalTime
-                + "," +TOPIC + "=" + topic + "," + DESTINATION + "=" + destination + "," + PERSISTENCE
-                + "=" + persistence + "," + MESSAGE_CONTENT_LENGTH + "=" + contentLength + "," + QOSLEVEL + "=" + qos;
+        String information =
+                metaData + "?" + MESSAGE_ID + "=" + messageID + "," + ARRIVAL_TIME + "=" + arrivalTime + "," + TOPIC
+                        + "=" + topic + "," + DESTINATION + "=" + destination + "," + PERSISTENCE + "=" + persistence
+                        + "," + MESSAGE_CONTENT_LENGTH + "=" + contentLength + "," + QOSLEVEL + "=" + qos;
         metaInformation = information.getBytes();
         return metaInformation;
     }
@@ -112,12 +115,11 @@ public class MQTTUtils {
      * @param qosLevel             the level of qos the message was published
      * @param messageContentLength the content length of the message
      * @param retain               should this message retain
-     * @param publisher          the uuid which will uniquely identify the publisher
+     * @param publisher            the uuid which will uniquely identify the publisher
      * @return the meta information compliant with the kernal
      */
     public static AndesMessageMetadata convertToAndesHeader(long messageID, String topic, int qosLevel,
-                                                            int messageContentLength, boolean retain,
-                                                            MQTTPublisherChannel publisher) {
+            int messageContentLength, boolean retain, MQTTPublisherChannel publisher) {
         long receivedTime = System.currentTimeMillis();
 
         AndesMessageMetadata messageHeader = new AndesMessageMetadata();
@@ -152,21 +154,24 @@ public class MQTTUtils {
      * @param content Content object which has access to the message content
      * @return the byte stream of the message
      */
-    public static ByteBuffer getContentFromMetaInformation(AndesContent content)
-            throws AndesException {
-        ByteBuffer message = ByteBuffer.allocate(content.getContentLength());
-
+    public static ByteBuffer getContentFromMetaInformation(AndesContent content) throws AndesException {
+        //        ByteBuffer message = ByteBuffer.allocate(content.getContentLength());
+        objectpool object_outbound = objectpool.getInstance();
+        ByteBuf message = object_outbound.setDirectMemory(content.getContentLength());
+        ByteBuffer message_convert;
         try {
             //offset value will always be set to 0 since mqtt doesn't support chunking the messages, always the message
             //will be in the first chunk but in AMQP there will be chunks
             final int mqttOffset = 0;
             content.putContent(mqttOffset, message);
+            message_convert = message.nioBuffer();
         } catch (AndesException e) {
             final String errorMessage = "Error in getting content for message";
             log.error(errorMessage, e);
             throw new AndesException(errorMessage, e);
         }
-        return message;
+
+        return message_convert;
     }
 
     /**
@@ -179,7 +184,6 @@ public class MQTTUtils {
         return AbstractMessage.QOSType.valueOf(qos);
     }
 
-
     /**
      * Check if a subscribed queue bound destination routing key matches with a given message routing key using MQTT
      * wildcards.
@@ -189,7 +193,7 @@ public class MQTTUtils {
      * @return Is queue bound routing key match the message routing key
      */
     public static boolean isTargetQueueBoundByMatchingToRoutingKey(String queueBoundRoutingKey,
-                                                                   String messageRoutingKey) {
+            String messageRoutingKey) {
         return SubscriptionsStore.matchTopics(messageRoutingKey, queueBoundRoutingKey);
     }
 
@@ -202,7 +206,8 @@ public class MQTTUtils {
     public static boolean isWildCardSubscription(String subscribedDestination) {
         boolean isWildCard = false;
 
-        if (subscribedDestination.contains(SINGLE_LEVEL_WILDCARD) || subscribedDestination.contains(MULTI_LEVEL_WILDCARD)) {
+        if (subscribedDestination.contains(SINGLE_LEVEL_WILDCARD) || subscribedDestination
+                .contains(MULTI_LEVEL_WILDCARD)) {
             isWildCard = true;
         }
 
@@ -228,7 +233,6 @@ public class MQTTUtils {
      *
      * @param topic              the name of the topic the message was sent
      * @param qosLevel           the level of QoS
-     * @see org.dna.mqtt.wso2.QOSLevel
      * @param message            the message in bytes
      * @param retain             should this message be persisted
      * @param mqttLocalMessageID the local id of the mqtt message
@@ -236,11 +240,10 @@ public class MQTTUtils {
      * @param pubAckHandler      the acknowledgment handler
      * @param socket             the channel in which the communication occurred
      * @return the message context
+     * @see org.dna.mqtt.wso2.QOSLevel
      */
-    public static MQTTMessageContext createMessageContext(String topic, QOSLevel qosLevel,
-                                                          ByteBuffer message, boolean retain,
-                                                          int mqttLocalMessageID, String publisherID,
-                                                          PubAckHandler pubAckHandler, Channel socket) {
+    public static MQTTMessageContext createMessageContext(String topic, QOSLevel qosLevel, ByteBuffer message,
+            boolean retain, int mqttLocalMessageID, String publisherID, PubAckHandler pubAckHandler, Channel socket) {
         MQTTMessageContext messageContext = new MQTTMessageContext();
         messageContext.setTopic(topic);
         messageContext.setQosLevel(qosLevel);
@@ -278,8 +281,7 @@ public class MQTTUtils {
      * Given the clean session value and qos level, decide whether it if falling into durable path.
      *
      * @param cleanSession The clean session value
-     * @param qos The quality of service level
-     *
+     * @param qos          The quality of service level
      * @return true if this falls into durable path
      */
     public static boolean isDurable(boolean cleanSession, int qos) {

@@ -54,7 +54,8 @@ class PublishDecoder extends DemuxDecoder {
             }
 
             if (message.getQos() == AbstractMessage.QOSType.RESERVED) {
-                throw new CorruptedFrameException("Received a PUBLISH with QoS flags setted 10 b11, MQTT 3.1.1 violation");
+                throw new CorruptedFrameException(
+                        "Received a PUBLISH with QoS flags setted 10 b11, MQTT 3.1.1 violation");
             }
         }
 
@@ -67,13 +68,14 @@ class PublishDecoder extends DemuxDecoder {
             return;
         }
         if (topic.contains("+") || topic.contains("#")) {
-            throw new CorruptedFrameException("Received a PUBLISH with topic containting wild card chars, topic: " + topic);
+            throw new CorruptedFrameException(
+                    "Received a PUBLISH with topic containting wild card chars, topic: " + topic);
         }
 
         message.setTopicName(topic);
 
-        if (message.getQos() == AbstractMessage.QOSType.LEAST_ONE ||
-                message.getQos() == AbstractMessage.QOSType.EXACTLY_ONCE) {
+        if (message.getQos() == AbstractMessage.QOSType.LEAST_ONE
+                || message.getQos() == AbstractMessage.QOSType.EXACTLY_ONCE) {
             message.setMessageID(in.readUnsignedShort());
         }
         int stopPos = in.readerIndex();
@@ -84,17 +86,12 @@ class PublishDecoder extends DemuxDecoder {
             in.resetReaderIndex();
             return;
         }
-//        byte[] b = new byte[payloadSize];
-//        ByteBuf bb = Unpooled.buffer(payloadSize);
-
-//        ByteBufAllocator alloc = PooledByteBufAllocator.DEFAULT;
-//        ByteBuf bb = alloc.directBuffer(payloadSize);
+        //        byte[] b = new byte[payloadSize];
+        //        ByteBuf bb = Unpooled.buffer(payloadSize);
         objectpool object = objectpool.getInstance();
-        ByteBuf bb=object.setDirectMemory(payloadSize);
+        ByteBuf bb = object.setDirectMemory(payloadSize);
         in.readBytes(bb);
-
-        object.setBytebufContent(bb);
-
+        //        object.setBytebufContent(bb);
         message.setPayload(bb.nioBuffer());
 
         out.add(message);

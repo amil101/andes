@@ -116,10 +116,62 @@ public class FailureObservingMessageStore implements MessageStore {
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void addMetadata(List<AndesMessageMetadata> metadataList) throws AndesException {
+        try {
+            wrappedInstance.addMetadata(metadataList);
+        } catch (AndesStoreUnavailableException exception) {
+            notifyFailures(exception);
+            throw exception;
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void addMetadata(AndesMessageMetadata metadata) throws AndesException {
+        try {
+            wrappedInstance.addMetadata(metadata);
+        } catch (AndesStoreUnavailableException exception) {
+            notifyFailures(exception);
+            throw exception;
+        }
+    }
+
     @Override
     public void storeMessages(List<AndesMessage> messageList) throws AndesException {
         try {
             wrappedInstance.storeMessages(messageList);
+        } catch (AndesStoreUnavailableException exception) {
+            notifyFailures(exception);
+            throw exception;
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void addMetadataToQueue(String queueName, AndesMessageMetadata metadata) throws AndesException {
+        try {
+            wrappedInstance.addMetadataToQueue(queueName, metadata);
+        } catch (AndesStoreUnavailableException exception) {
+            notifyFailures(exception);
+            throw exception;
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void addMetadataToQueue(String queueName, List<AndesMessageMetadata> metadata) throws AndesException {
+        try {
+            wrappedInstance.addMetadataToQueue(queueName, metadata);
         } catch (AndesStoreUnavailableException exception) {
             notifyFailures(exception);
             throw exception;
@@ -309,19 +361,6 @@ public class FailureObservingMessageStore implements MessageStore {
      * {@inheritDoc}
      */
     @Override
-    public void deleteDLCMessages(List<AndesMessageMetadata> messagesToRemove) throws AndesException {
-        try {
-            wrappedInstance.deleteDLCMessages(messagesToRemove);
-        } catch (AndesStoreUnavailableException exception) {
-            notifyFailures(exception);
-            throw exception;
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public List<AndesMessageMetadata> getExpiredMessages(int limit) throws AndesException {
         try {
             return wrappedInstance.getExpiredMessages(limit);
@@ -486,14 +525,6 @@ public class FailureObservingMessageStore implements MessageStore {
             notifyFailures(exception);
             throw exception;
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void removeLocalQueueData(String storageQueueName) {
-        wrappedInstance.removeLocalQueueData(storageQueueName);
     }
 
     /**

@@ -155,7 +155,7 @@
             <artifactId>mina-filter-ssl</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.wso2.orbit.com.lmax</groupId>
+            <groupId>org.wso2.lmax</groupId>
             <artifactId>disruptor</artifactId>
         </dependency>
         <dependency>
@@ -341,6 +341,11 @@
         <dependency>
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.wso2.andes</groupId>
+            <artifactId>andes-common</artifactId>
+            <version>3.0.0</version>
         </dependency>
     </dependencies>
 

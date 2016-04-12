@@ -114,10 +114,6 @@ public class RDBMSConstants {
     protected static final String SLOT_TABLE = "MB_SLOT";
     protected static final String SLOT_MESSAGE_ID_TABLE = "MB_SLOT_MESSAGE_ID";
     protected static final String QUEUE_TO_LAST_ASSIGNED_ID = "MB_QUEUE_TO_LAST_ASSIGNED_ID";
-
-    /**
-     * This dataset maps to the nodeID - localSafeZone association within the broker.
-     */
     protected static final String NODE_TO_LAST_PUBLISHED_ID = "MB_NODE_TO_LAST_PUBLISHED_ID";
 
     // Andes Context Store table columns
@@ -178,13 +174,9 @@ public class RDBMSConstants {
             + " VALUES ( ?,?,? )";
 
     protected static final String PS_INSERT_QUEUE =
-            "INSERT INTO " + QUEUES_TABLE + " ("
+            "INSERT INTO " + RDBMSConstants.QUEUES_TABLE + " ("
             + RDBMSConstants.QUEUE_NAME + ")"
             + "  VALUES (?)";
-
-    protected static final String PS_DELETE_QUEUE =
-                        "DELETE FROM " + QUEUES_TABLE
-                        + " WHERE " + QUEUE_NAME + "=?";
 
     protected static final String PS_ALIAS_FOR_COUNT = "count";
 
@@ -289,15 +281,9 @@ public class RDBMSConstants {
             + " WHERE " + QUEUE_ID + "=?"
             + " AND " + MESSAGE_ID + "=?";
 
-    protected static final String PS_DELETE_METADATA_IN_DLC =
-            "DELETE  FROM " + METADATA_TABLE
-            + " WHERE " + MESSAGE_ID + "=?"
-            + " AND " + DLC_QUEUE_ID + "!=-1";
-
     protected static final String PS_DELETE_METADATA =
             "DELETE  FROM " + METADATA_TABLE
-            + " WHERE " + MESSAGE_ID + "=?"
-            + " AND " + DLC_QUEUE_ID + "=-1";
+            + " WHERE " + MESSAGE_ID + "=?";
 
     protected static final String PS_CLEAR_QUEUE_FROM_METADATA =
             "DELETE  FROM " + METADATA_TABLE
@@ -510,7 +496,7 @@ public class RDBMSConstants {
     /**
      * Prepared statement to delete a slot from database
      */
-    protected static final String PS_DELETE_NON_OVERLAPPING_SLOT =
+    protected static final String PS_DELETE_SLOT =
             "DELETE FROM " + SLOT_TABLE
             + " WHERE " + START_MESSAGE_ID + "=?"
             + " AND " + END_MESSAGE_ID + "=?"
@@ -565,15 +551,6 @@ public class RDBMSConstants {
             + " WHERE " + ASSIGNED_NODE_ID + "=?"
             + " AND " + SLOT_STATE + "=" + SlotState.ASSIGNED.getCode()
             + " ORDER BY " + SLOT_ID;
-
-    /**
-     * Prepared statement to get a slot
-     */
-    protected static final String PS_GET_SLOT =
-            "SELECT " + SLOT_STATE + "," + STORAGE_QUEUE_NAME
-            + " FROM " + SLOT_TABLE
-            + " WHERE " + START_MESSAGE_ID + "=?"
-            + " AND " + END_MESSAGE_ID + "=?";
 
     /**
      * Prepared statements for setting slot states
@@ -824,7 +801,6 @@ public class RDBMSConstants {
     protected static final String TASK_RETRIEVING_CONTENT_FOR_MESSAGES = "retrieving content for multiple messages";
     protected static final String TASK_ADDING_METADATA_LIST = "adding metadata list.";
     protected static final String TASK_ADDING_METADATA = "adding metadata.";
-    protected static final String TASK_ADDING_MESSAGE = "adding message.";
     protected static final String TASK_ADDING_MESSAGES = "adding messages";
     protected static final String TASK_DELETING_MESSAGES = "deleting messages";
     protected static final String TASK_MOVING_METADATA_TO_DLC = "moving message metadata to dlc.";
@@ -850,7 +826,6 @@ public class RDBMSConstants {
                                                                                 + "queue. ";
     protected static final String TASK_DELETING_FROM_EXPIRY_TABLE = "deleting from expiry table.";
     protected static final String TASK_DELETING_METADATA_FROM_QUEUE = "deleting metadata from queue. ";
-    protected static final String TASK_DELETING_MESSAGE_FROM_DLC = "deleting message from dlc. ";
     protected static final String TASK_CLEARING_DLC_QUEUE = "clearing dlc queue. " ;
     protected static final String TASK_RESETTING_MESSAGE_COUNTER = "Resetting message counter for queue";
     protected static final String TASK_RETRIEVING_EXPIRED_MESSAGES = "retrieving expired messages.";
@@ -881,7 +856,6 @@ public class RDBMSConstants {
     protected static final String TASK_STORING_QUEUE_INFO = "storing queue information ";
     protected static final String TASK_RETRIEVING_ALL_QUEUE_INFO = "retrieving all queue information. ";
     protected static final String TASK_DELETING_QUEUE_INFO = "deleting queue information. ";
-    protected static final String TASK_DELETE_QUEUE_MAPPING = "deleting queue mapping";
     protected static final String TASK_STORING_BINDING = "storing binding information. ";
     protected static final String TASK_RETRIEVING_BINDING_INFO = "retrieving binding information.";
     protected static final String TASK_DELETING_BINDING = "deleting binding information. ";

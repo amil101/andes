@@ -25,7 +25,6 @@ import org.wso2.andes.kernel.AndesContextStore;
 import org.wso2.andes.kernel.AndesException;
 import org.wso2.andes.kernel.AndesExchange;
 import org.wso2.andes.kernel.AndesQueue;
-import org.wso2.andes.kernel.AndesSubscription;
 import org.wso2.andes.kernel.DurableStoreConnection;
 import org.wso2.andes.kernel.slot.Slot;
 import org.wso2.andes.kernel.slot.SlotState;
@@ -66,7 +65,7 @@ public class RDBMSAndesContextStoreImpl implements AndesContextStore {
      * Contains utils methods related to connection health tests
      */
     private RDBMSStoreUtils rdbmsStoreUtils;
-
+    
     
     
     /**
@@ -170,16 +169,15 @@ public class RDBMSAndesContextStoreImpl implements AndesContextStore {
      * {@inheritDoc}
      */
     @Override
-    public void storeDurableSubscription(AndesSubscription subscription) throws AndesException {
+    public void storeDurableSubscription(String destinationIdentifier, String subscriptionID,
+                                         String subscriptionEncodeAsStr) throws AndesException {
 
         Connection connection = null;
         PreparedStatement preparedStatement = null;
         Context contextWrite = MetricManager.timer(Level.INFO, MetricsConstants.DB_WRITE).start();
-
-        String destinationIdentifier = getDestinationIdentifier(subscription);
-        String subscriptionID = subscription.getSubscribedNode() + "_" + subscription.getSubscriptionID();
         
         try {
+
             connection = getConnection();
 
             preparedStatement = connection.prepareStatement(
@@ -187,7 +185,7 @@ public class RDBMSAndesContextStoreImpl implements AndesContextStore {
 
             preparedStatement.setString(1, destinationIdentifier);
             preparedStatement.setString(2, subscriptionID);
-            preparedStatement.setString(3, subscription.encodeAsStr());
+            preparedStatement.setString(3, subscriptionEncodeAsStr);
             preparedStatement.executeUpdate();
 
             connection.commit();
@@ -207,14 +205,11 @@ public class RDBMSAndesContextStoreImpl implements AndesContextStore {
      * {@inheritDoc}
      */
     @Override
-    public void updateDurableSubscription(AndesSubscription subscription) throws AndesException {
+    public void updateDurableSubscription(String destinationIdentifier, String subscriptionID, 
+                                          String subscriptionEncodeAsStr) throws AndesException {
         Connection connection = null;
         PreparedStatement preparedStatement = null;
         Context contextWrite = MetricManager.timer(Level.INFO, MetricsConstants.DB_WRITE).start();
-
-        String destinationIdentifier = getDestinationIdentifier(subscription);
-        String subscriptionID = subscription.getSubscribedNode() + "_" + subscription.getSubscriptionID();
-
         try {
 
             connection = getConnection();
@@ -222,7 +217,7 @@ public class RDBMSAndesContextStoreImpl implements AndesContextStore {
             preparedStatement = connection.prepareStatement(
                     RDBMSConstants.PS_UPDATE_DURABLE_SUBSCRIPTION);
 
-            preparedStatement.setString(1, subscription.encodeAsStr());
+            preparedStatement.setString(1, subscriptionEncodeAsStr);
             preparedStatement.setString(2, destinationIdentifier);
             preparedStatement.setString(3, subscriptionID);
             preparedStatement.executeUpdate();
@@ -275,14 +270,10 @@ public class RDBMSAndesContextStoreImpl implements AndesContextStore {
      * {@inheritDoc}
      */
     @Override
-    public void removeDurableSubscription(AndesSubscription subscription)
+    public void removeDurableSubscription(String destinationIdentifier, String subscriptionID)
             throws AndesException {
         Connection connection = null;
         PreparedStatement preparedStatement = null;
-
-        String destinationIdentifier = getDestinationIdentifier(subscription);
-        String subscriptionID = subscription.getSubscribedNode() + "_" + subscription.getSubscriptionID();
-
         String task = RDBMSConstants.TASK_REMOVING_DURABLE_SUBSCRIPTION + "destination: " +
                 destinationIdentifier + " sub id: " + subscriptionID;
         Context contextWrite = MetricManager.timer(Level.INFO, MetricsConstants.DB_WRITE).start();
@@ -1100,50 +1091,21 @@ public class RDBMSAndesContextStoreImpl implements AndesContextStore {
      * {@inheritDoc}
      */
     @Override
-    public boolean deleteSlot(long startMessageId, long endMessageId) throws AndesException {
+    public void deleteSlot(long startMessageId, long endMessageId) throws AndesException {
         Connection connection = null;
         PreparedStatement preparedStatement = null;
-
-        boolean slotDeleted;
 
         try {
 
             connection = getConnection();
 
-            preparedStatement = connection.prepareStatement(RDBMSConstants.PS_DELETE_NON_OVERLAPPING_SLOT);
+            preparedStatement = connection.prepareStatement(RDBMSConstants.PS_DELETE_SLOT);
 
             preparedStatement.setLong(1, startMessageId);
             preparedStatement.setLong(2, endMessageId);
 
-            int rowsAffected = preparedStatement.executeUpdate();
+            preparedStatement.executeUpdate();
             connection.commit();
-
-            if (rowsAffected == 0) {
-                // Check if the Slot exists in Store
-                preparedStatement = connection.prepareStatement(RDBMSConstants.PS_GET_SLOT);
-
-                preparedStatement.setLong(1, startMessageId);
-                preparedStatement.setLong(2, endMessageId);
-
-                ResultSet resultSet = preparedStatement.executeQuery();
-
-                // slotDeleted set to true if there is no overlapping slot in the DB
-                slotDeleted = !resultSet.next();
-                resultSet.close();
-            } else {
-                slotDeleted = true;
-            }
-
-            if (logger.isDebugEnabled()) {
-                if (slotDeleted) {
-                    logger.debug("Slot deleted, startMessageId " + startMessageId + " endMessageId" + endMessageId);
-                } else {
-                    logger.debug(
-                            "Cannot delete slot, startMessageId " + startMessageId + " endMessageId" + endMessageId);
-                }
-            }
-
-            return slotDeleted;
         } catch (SQLException e) {
             String errMsg =
                     RDBMSConstants.TASK_DELETE_SLOT + " startMessageId: " + startMessageId + " endMessageId: " +
@@ -1433,7 +1395,7 @@ public class RDBMSAndesContextStoreImpl implements AndesContextStore {
     /**
      * {@inheritDoc}
      */
-    public long getLocalSafeZoneOfNode(String nodeId) throws AndesException {
+    public long getNodeToLastPublishedId(String nodeId) throws AndesException {
         Connection connection = null;
         PreparedStatement preparedStatement = null;
         ResultSet resultSet = null;
@@ -1465,7 +1427,7 @@ public class RDBMSAndesContextStoreImpl implements AndesContextStore {
     /**
      *{@inheritDoc}
      */
-    public void setLocalSafeZoneOfNode(String nodeId, long messageId) throws AndesException {
+    public void setNodeToLastPublishedId(String nodeId, long messageId) throws AndesException {
         Connection connection = null;
         PreparedStatement preparedStatement = null;
         ResultSet resultSet;
@@ -1874,9 +1836,5 @@ public class RDBMSAndesContextStoreImpl implements AndesContextStore {
             return false;
         }
     
-    }
-
-    private String getDestinationIdentifier(AndesSubscription subscription) {
-        return subscription.getDestinationType() + "." + subscription.getSubscribedDestination();
     }
 }

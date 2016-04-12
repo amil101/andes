@@ -24,9 +24,7 @@ import org.apache.commons.logging.LogFactory;
 import org.wso2.andes.kernel.AndesContextInformationManager;
 import org.wso2.andes.kernel.AndesException;
 import org.wso2.andes.kernel.AndesQueue;
-import org.wso2.andes.kernel.DestinationType;
 import org.wso2.andes.kernel.MessagingEngine;
-import org.wso2.andes.kernel.ProtocolType;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -81,6 +79,11 @@ public class InboundQueueEvent extends AndesQueue implements AndesInboundStateEv
     private MessagingEngine messagingEngine;
 
     /**
+     * Whether the queue is used to store topic messages
+     */
+    private boolean isTopic;
+
+    /**
      * Purged message count as a future. When a purging is done purged message count is set. Interested user can use 
      * InboundQueueEvent#getPurgedCount method to get the purged count from this async event. 
      * InboundQueueEvent#getPurgedCount method is a blocking call.  
@@ -97,6 +100,12 @@ public class InboundQueueEvent extends AndesQueue implements AndesInboundStateEv
      */
     private SettableFuture<Boolean> isEventComplete;
 
+    /**
+     * Declares the maximum number of milliseconds the event could take to complete.
+     * This is used by the thread that is waiting on the future object so that it is blocked until the event is
+     * complete. The waiting time is set to 5 seconds since it could take somewhat a long time in a loaded environment
+     */
+    private final int MAX_COMPLETION_TIME = 5000;
 
     /**
      * create an instance of andes queue
@@ -105,13 +114,28 @@ public class InboundQueueEvent extends AndesQueue implements AndesInboundStateEv
      * @param queueOwner  owner of the queue (virtual host)
      * @param isExclusive is queue exclusive
      * @param isDurable   is queue durable
-     * @param protocolType The protocol which invoked this queue create
-     * @param destinationType The destination type for which this queue is created
      */
-    public InboundQueueEvent(String queueName, String queueOwner, boolean isExclusive, boolean isDurable, ProtocolType protocolType, DestinationType destinationType) {
-        super(queueName, queueOwner, isExclusive, isDurable, protocolType, destinationType);
+    public InboundQueueEvent(String queueName, String queueOwner, boolean isExclusive, boolean isDurable) {
+        super(queueName, queueOwner, isExclusive, isDurable);
         purgedCount = SettableFuture.create();
         isEventComplete = SettableFuture.create();
+        isTopic = false;
+    }
+
+    /**
+     * create an instance of andes queue
+     *
+     * @param queueName   name of the queue
+     * @param queueOwner  owner of the queue (virtual host)
+     * @param isExclusive is queue exclusive
+     * @param isDurable   is queue durable
+     * @param isBoundToTopic is queue bound to topic
+     */
+    public InboundQueueEvent(String queueName, String queueOwner, boolean isExclusive, boolean isDurable, boolean isBoundToTopic) {
+        super(queueName, queueOwner, isExclusive, isDurable);
+        purgedCount = SettableFuture.create();
+        isEventComplete = SettableFuture.create();
+        isTopic = isBoundToTopic;
     }
 
     /**
@@ -123,6 +147,7 @@ public class InboundQueueEvent extends AndesQueue implements AndesInboundStateEv
         super(queueAsStr);
         purgedCount = SettableFuture.create();
         isEventComplete = SettableFuture.create();
+        isTopic = false;
     }
 
     @Override
@@ -134,7 +159,7 @@ public class InboundQueueEvent extends AndesQueue implements AndesInboundStateEv
                 isEventComplete.set(true);
                 break;
             case DELETE_QUEUE_EVENT:
-                contextInformationManager.deleteQueue(queueName, getProtocolType(), getDestinationType());
+                contextInformationManager.deleteQueue(queueName);
                 break;
             case QUEUE_PURGE_EVENT:
                 handlePurgeEvent();
@@ -156,8 +181,7 @@ public class InboundQueueEvent extends AndesQueue implements AndesInboundStateEv
     private void handleIsQueueDeletableEvent() {
         boolean queueDeletable = false;
         try {
-            queueDeletable = contextInformationManager.checkIfQueueDeletable(
-                    queueName, getProtocolType(), getDestinationType());
+            queueDeletable = contextInformationManager.checkIfQueueDeletable(queueName, isTopic);
         } catch (AndesException e) {
             isEventComplete.setException(e);
         } finally {
@@ -169,7 +193,7 @@ public class InboundQueueEvent extends AndesQueue implements AndesInboundStateEv
     private void handlePurgeEvent() {
         int count = -1;
         try {
-            count = messagingEngine.purgeMessages(queueName, queueOwner, getProtocolType(), getDestinationType());
+            count = messagingEngine.purgeMessages(queueName, queueOwner, isTopic);
             purgedCount.set(count);
         } catch (AndesException e) {
             purgedCount.setException(e);
@@ -203,9 +227,11 @@ public class InboundQueueEvent extends AndesQueue implements AndesInboundStateEv
      * Update the event to be a queue purging event
      *
      * @param messagingEngine MessagingEngine
+     * @param isTopic         is the queue is used to store topic messages
      */
-    public void purgeQueue(MessagingEngine messagingEngine) {
+    public void purgeQueue(MessagingEngine messagingEngine, boolean isTopic) {
         eventType = EventType.QUEUE_PURGE_EVENT;
+        this.isTopic = isTopic;
         this.messagingEngine = messagingEngine;
     }
 
@@ -246,10 +272,12 @@ public class InboundQueueEvent extends AndesQueue implements AndesInboundStateEv
      */
     public boolean IsQueueDeletable() throws AndesException {
         try {
-            return isEventComplete.get();
+            return isEventComplete.get(MAX_COMPLETION_TIME, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (ExecutionException e) {
+            throw new AndesException("Error occurred while checking is queue: " + queueName + " deletable", e);
+        } catch (TimeoutException e) {
             throw new AndesException("Error occurred while checking is queue: " + queueName + " deletable", e);
         }
         return false;
@@ -261,12 +289,16 @@ public class InboundQueueEvent extends AndesQueue implements AndesInboundStateEv
     public void waitForCompletion() throws AndesException {
         try {
             //stay blocked until the queue addition is complete
-            isEventComplete.get();
+            isEventComplete.get(MAX_COMPLETION_TIME, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (ExecutionException e) {
             // No point in throwing an exception here and disrupting the server. A warning is sufficient.
             log.warn("Error occurred while processing event " + eventType + " queue: " + queueName);
+        } catch (TimeoutException e) {
+            // The timeout means that the processing of the even did not complete as expected. At such times we do not
+            // want to proceed
+            throw new AndesException("Error occurred while checking if queue: " + queueName + " is added", e);
         }
     }
 

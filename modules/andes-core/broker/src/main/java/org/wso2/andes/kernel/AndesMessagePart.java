@@ -26,7 +26,8 @@ import java.nio.ByteBuffer;
 public class AndesMessagePart {
     long messageID;
     int offSet = 0;
-    private ByteBuffer data;
+//    private byte[] data;
+private ByteBuffer data;
     private int dataLength;
 
     public int getOffset() {

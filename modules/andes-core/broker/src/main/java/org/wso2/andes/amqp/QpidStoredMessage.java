@@ -18,6 +18,7 @@
 
 package org.wso2.andes.amqp;
 
+import io.netty.buffer.ByteBuf;
 import org.apache.log4j.Logger;
 import org.wso2.andes.kernel.AndesContent;
 import org.wso2.andes.kernel.AndesException;
@@ -26,6 +27,8 @@ import org.wso2.andes.server.store.StorableMessageMetaData;
 import org.wso2.andes.server.store.StoredMessage;
 
 import java.nio.ByteBuffer;
+
+import static io.netty.buffer.Unpooled.wrappedBuffer;
 
 /**
  * This class works as a wrapper for AndesContent for Qpid
@@ -54,7 +57,10 @@ public class QpidStoredMessage<T extends StorableMessageMetaData> extends Forwar
         int bytesWrittenToBuffer = 0;
 
         try {
-            bytesWrittenToBuffer = content.putContent(offsetInMessage, dst);
+//            bytesWrittenToBuffer = content.putContent(offsetInMessage, dst);
+            ByteBuf slice=wrappedBuffer(dst);
+            bytesWrittenToBuffer = content.putContent(offsetInMessage, slice);
+
         } catch (AndesException e) {
             log.error("Error while getting message content chunk offset " + offsetInMessage, e);
         }

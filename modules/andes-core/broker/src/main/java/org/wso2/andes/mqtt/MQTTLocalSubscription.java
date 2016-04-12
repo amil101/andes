@@ -20,10 +20,14 @@ package org.wso2.andes.mqtt;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.dna.mqtt.wso2.QOSLevel;
-import org.wso2.andes.kernel.*;
+import org.wso2.andes.kernel.AndesContent;
+import org.wso2.andes.kernel.AndesException;
+import org.wso2.andes.kernel.AndesUtils;
+import org.wso2.andes.kernel.ConcurrentTrackingList;
+import org.wso2.andes.kernel.DeliverableAndesMetadata;
+import org.wso2.andes.kernel.ProtocolMessage;
 import org.wso2.andes.mqtt.utils.MQTTUtils;
 import org.wso2.andes.subscription.OutboundSubscription;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.nio.ByteBuffer;
 import java.util.UUID;
@@ -149,23 +153,6 @@ public class MQTTLocalSubscription implements OutboundSubscription {
      * {@inheritDoc}
      */
     @Override
-    public void forcefullyDisconnect() throws AndesException {
-        throw new NotImplementedException();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean isMessageAcceptedBySelector(AndesMessageMetadata messageMetadata) throws AndesException {
-        //always return true as MQTT does not register message selectors
-        return true;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public boolean sendMessageToSubscriber(ProtocolMessage protocolMessage, AndesContent content)
             throws AndesException {
 
@@ -196,6 +183,7 @@ public class MQTTLocalSubscription implements OutboundSubscription {
                     mqqtServerChannel.implicitAck(messageMetadata.getMessageID(), getChannelID());
                 }
                 sendSuccess = true;
+
             } catch (MQTTException e) {
                 final String error = "Error occurred while delivering message to the subscriber for message :" +
                         messageMetadata.getMessageID();
@@ -254,8 +242,7 @@ public class MQTTLocalSubscription implements OutboundSubscription {
         if (isDurable) {
             storageQueueName = MQTTUtils.getTopicSpecificQueueName(mqttSubscriptionID, destination);
         } else {
-            storageQueueName = AndesUtils.getStorageQueueForDestination(destination, subscribedNode,
-                    DestinationType.TOPIC);
+            storageQueueName = AndesUtils.getStorageQueueForDestination(destination, subscribedNode, true);
         }
 
         return storageQueueName;

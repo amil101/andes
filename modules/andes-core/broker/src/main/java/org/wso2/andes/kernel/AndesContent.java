@@ -18,7 +18,7 @@
 
 package org.wso2.andes.kernel;
 
-import java.nio.ByteBuffer;
+import io.netty.buffer.ByteBuf;
 
 /**
  * Andes content is used by local subscriptions to retrieve message content.
@@ -28,14 +28,12 @@ public interface AndesContent {
     /**
      * This method gives access to content of the message.
      *
-     * @param offset
-     *         Starting byte position
-     * @param destinationBuffer
-     *         Destination Byte buffer
+     * @param offset            Starting byte position
+     * @param destinationBuffer Destination Byte buffer
      * @return Number of bytes written to the buffer
      * @throws AndesException
      */
-    int putContent(int offset, ByteBuffer destinationBuffer) throws AndesException;
+    int putContent(int offset, ByteBuf destinationBuffer) throws AndesException;
 
     /**
      * Return the content length of the message

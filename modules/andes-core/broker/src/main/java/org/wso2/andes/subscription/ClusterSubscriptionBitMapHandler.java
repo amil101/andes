@@ -24,8 +24,7 @@ import org.apache.commons.logging.LogFactory;
 import org.wso2.andes.amqp.AMQPUtils;
 import org.wso2.andes.kernel.AndesException;
 import org.wso2.andes.kernel.AndesSubscription;
-import org.wso2.andes.kernel.DestinationType;
-import org.wso2.andes.kernel.ProtocolType;
+import org.wso2.andes.kernel.AndesSubscription.SubscriptionType;
 import org.wso2.andes.mqtt.utils.MQTTUtils;
 
 import java.util.*;
@@ -35,9 +34,9 @@ import java.util.regex.Pattern;
  * Store subscriptions according to the respective protocol using bitmaps as the underlying data structure for
  * faster wildcard matching.
  */
-public class TopicSubscriptionBitMapStore implements AndesSubscriptionStore {
+public class ClusterSubscriptionBitMapHandler implements ClusterSubscriptionHandler {
 
-    private Log log = LogFactory.getLog(TopicSubscriptionBitMapStore.class);
+    private Log log = LogFactory.getLog(ClusterSubscriptionBitMapHandler.class);
 
     /**
      * The topic delimiter to differentiate each constituent according to the current subscription type.
@@ -54,7 +53,7 @@ public class TopicSubscriptionBitMapStore implements AndesSubscriptionStore {
      */
     private String singleLevelWildCard;
 
-    private ProtocolType protocolType;
+    private SubscriptionType subscriptionType;
 
     // 'Null' and 'Other' constituents are picked from restricted topic characters
 
@@ -69,9 +68,9 @@ public class TopicSubscriptionBitMapStore implements AndesSubscriptionStore {
     private static final String OTHER_CONSTITUENT = "%other%";
 
     /**
-     * Keeps all the subscriptions.
+     * Keeps all the wildcard subscriptions.
      */
-    private List<AndesSubscription> subscriptionList = new ArrayList<AndesSubscription>();
+    private List<AndesSubscription> wildCardSubscriptionList = new ArrayList<AndesSubscription>();
 
     /**
      * Keeps all the subscription destinations broken into their constituents.
@@ -86,42 +85,42 @@ public class TopicSubscriptionBitMapStore implements AndesSubscriptionStore {
     /**
      * Initialize BitMapHandler with the subscription type.
      *
-     * @param protocolType The protocol type to handle
+     * @param subscriptionType The subscription type to handle
      * @throws AndesException
      */
-    public TopicSubscriptionBitMapStore(ProtocolType protocolType) throws AndesException {
-        if (ProtocolType.AMQP == protocolType) {
+    public ClusterSubscriptionBitMapHandler(SubscriptionType subscriptionType) throws AndesException {
+        if (SubscriptionType.AMQP == subscriptionType) {
             constituentsDelimiter = ".";
             // AMQPUtils keep wildcard concatenated with constituent delimiter, hence removing them get wildcard only
             multiLevelWildCard = AMQPUtils.TOPIC_AND_CHILDREN_WILDCARD.replace(constituentsDelimiter, "");
             singleLevelWildCard = AMQPUtils.IMMEDIATE_CHILDREN_WILDCARD.replace(constituentsDelimiter, "");
-        } else if (ProtocolType.MQTT == protocolType) {
+        } else if (SubscriptionType.MQTT == subscriptionType) {
             constituentsDelimiter = "/";
             multiLevelWildCard = MQTTUtils.MULTI_LEVEL_WILDCARD;
             singleLevelWildCard = MQTTUtils.SINGLE_LEVEL_WILDCARD;
         } else {
-            throw new AndesException("Subscription type " + protocolType + " is not recognized.");
+            throw new AndesException("Subscription type " + subscriptionType + " is not recognized.");
         }
 
-        this.protocolType = protocolType;
+        this.subscriptionType = subscriptionType;
     }
 
     /**
-     * Add a new subscription to the structure.
+     * Add a new wildcard subscription to the structure.
      *
      * @param subscription The subscription to be added.
      * @throws AndesException
      */
     @Override
-    public void addSubscription(AndesSubscription subscription) throws AndesException {
+    public void addWildCardSubscription(AndesSubscription subscription) throws AndesException {
         String destination = subscription.getSubscribedDestination();
 
         if (StringUtils.isNotEmpty(destination)) {
             if (!isSubscriptionAvailable(subscription)) {
-                int newSubscriptionIndex = subscriptionList.size();
+                int newSubscriptionIndex = wildCardSubscriptionList.size();
 
                 // The index is added to make it clear to which index this is being inserted
-                subscriptionList.add(newSubscriptionIndex, subscription);
+                wildCardSubscriptionList.add(newSubscriptionIndex, subscription);
 
                 String constituents[] = destination.split(Pattern.quote(constituentsDelimiter));
 
@@ -148,7 +147,7 @@ public class TopicSubscriptionBitMapStore implements AndesSubscriptionStore {
 
                 addSubscriptionColumn(destination, newSubscriptionIndex);
             } else {
-                updateSubscription(subscription);
+                updateWildCardSubscription(subscription);
             }
 
         } else {
@@ -161,16 +160,16 @@ public class TopicSubscriptionBitMapStore implements AndesSubscriptionStore {
      * {@inheritDoc}
      */
     @Override
-    public void updateSubscription(AndesSubscription subscription) {
+    public void updateWildCardSubscription(AndesSubscription subscription) {
         if (isSubscriptionAvailable(subscription)) {
             // Need to add the new entry to the same index since bitmap logic is dependent on this index
-            int index = subscriptionList.indexOf(subscription);
+            int index = wildCardSubscriptionList.indexOf(subscription);
 
             // Should not allow to modify this list until the update is complete
             // Otherwise the subscription indexes will be invalid
-            synchronized (subscriptionList) {
-                subscriptionList.remove(index);
-                subscriptionList.add(index, subscription);
+            synchronized (wildCardSubscriptionList) {
+                wildCardSubscriptionList.remove(index);
+                wildCardSubscriptionList.add(index, subscription);
             }
         }
     }
@@ -182,11 +181,11 @@ public class TopicSubscriptionBitMapStore implements AndesSubscriptionStore {
     private Map<String, BitSet> addConstituentTable(int constituentIndex) {
         Map<String, BitSet> constituentTable = new HashMap<String, BitSet>();
 
-        BitSet nullBitSet = new BitSet(subscriptionList.size());
-        BitSet otherBitSet = new BitSet(subscriptionList.size());
+        BitSet nullBitSet = new BitSet(wildCardSubscriptionList.size());
+        BitSet otherBitSet = new BitSet(wildCardSubscriptionList.size());
 
         // Fill null and other constituent values for all available subscriptions
-        for (int subscriptionIndex = 0; subscriptionIndex < subscriptionList.size(); subscriptionIndex++) {
+        for (int subscriptionIndex = 0; subscriptionIndex < wildCardSubscriptionList.size(); subscriptionIndex++) {
             String[] constituentsOfSubscription = subscriptionConstituents.get(subscriptionIndex);
 
             if (constituentsOfSubscription.length < constituentIndex + 1) {
@@ -240,23 +239,23 @@ public class TopicSubscriptionBitMapStore implements AndesSubscriptionStore {
         // Loop through each constituent table for the new constituents
         for (int constituentIndex = 0; constituentIndex < subscribedDestinationConstituents.length;
              constituentIndex++) {
-            String currentConstituent = subscribedDestinationConstituents[constituentIndex];
-            Map<String, BitSet> constituentTable = constituentTables.get(constituentIndex);
+                    String currentConstituent = subscribedDestinationConstituents[constituentIndex];
+                    Map<String, BitSet> constituentTable = constituentTables.get(constituentIndex);
 
-            // Loop through each constituent row in the table and fill values
-            for (Map.Entry<String, BitSet> constituentRow : constituentTable.entrySet()) {
-                String constituentOfCurrentRow = constituentRow.getKey();
-                BitSet bitSet = constituentRow.getValue();
+                    // Loop through each constituent row in the table and fill values
+                    for (Map.Entry<String, BitSet> constituentRow : constituentTable.entrySet()) {
+                        String constituentOfCurrentRow = constituentRow.getKey();
+                        BitSet bitSet = constituentRow.getValue();
 
-                if (constituentOfCurrentRow.equals(currentConstituent)) {
+                        if (constituentOfCurrentRow.equals(currentConstituent)) {
                     bitSet.set(subscriptionIndex);
                 } else if (NULL_CONSTITUENT.equals(constituentOfCurrentRow)) {
-                    // Check if this constituent being null matches the destination if we match it with
-                    // a null constituent
-                    String wildcardDestination = NULL_CONSTITUENT + constituentsDelimiter +
-                            currentConstituent;
-                    bitSet.set(subscriptionIndex, isMatchForProtocolType(wildcardDestination,
-                            matchDestinationForNull));
+                        // Check if this constituent being null matches the destination if we match it with
+                        // a null constituent
+                        String wildcardDestination = NULL_CONSTITUENT + constituentsDelimiter +
+                                currentConstituent;
+                        bitSet.set(subscriptionIndex, isMatchForSubscriptionType(wildcardDestination,
+                                matchDestinationForNull));
 //                    }
                 } else if (OTHER_CONSTITUENT.equals(constituentOfCurrentRow)) {
                     // Check if other is matched by comparing wildcard through specific wildcard matching
@@ -264,7 +263,7 @@ public class TopicSubscriptionBitMapStore implements AndesSubscriptionStore {
                     // non-wildcard destination match with the corresponding matching method
                     String wildCardDestination = OTHER_CONSTITUENT + constituentsDelimiter + currentConstituent;
 
-                    bitSet.set(subscriptionIndex, isMatchForProtocolType(wildCardDestination,
+                    bitSet.set(subscriptionIndex, isMatchForSubscriptionType(wildCardDestination,
                             matchDestinationForOther));
                 } else if (singleLevelWildCard.equals(currentConstituent) ||
                         multiLevelWildCard.equals(currentConstituent)) {
@@ -288,7 +287,7 @@ public class TopicSubscriptionBitMapStore implements AndesSubscriptionStore {
             if (!multiLevelWildCard.equals(subscribedDestinationConstituents[subscribedDestinationConstituents.length
                     - 1])) {
                 String otherConstituentComparer = subscribedDestination + constituentsDelimiter + OTHER_CONSTITUENT;
-                matchingOthers = isMatchForProtocolType(subscribedDestination, otherConstituentComparer);
+                matchingOthers = isMatchForSubscriptionType(subscribedDestination, otherConstituentComparer);
             } // Else matchingOthers will be true
 
             for (int constituentIndex = subscribedDestinationConstituents.length; constituentIndex <
@@ -352,23 +351,23 @@ public class TopicSubscriptionBitMapStore implements AndesSubscriptionStore {
     }
 
     /**
-     * Return the match between the given two parameters with respect to the protocol.
+     * Return the match between the given two parameters with respect to the subscription type.
      *
      * @param wildCardDestination    The destination with/without wildcard
      * @param nonWildCardDestination The direct destination without wildcards
      * @return Match status
      * @throws AndesException
      */
-    private boolean isMatchForProtocolType(String wildCardDestination, String nonWildCardDestination) throws
+    private boolean isMatchForSubscriptionType(String wildCardDestination, String nonWildCardDestination) throws
             AndesException {
         boolean matching = false;
 
-        if (ProtocolType.AMQP == protocolType) {
+        if (SubscriptionType.AMQP == subscriptionType) {
             matching = AMQPUtils.isTargetQueueBoundByMatchingToRoutingKey(wildCardDestination, nonWildCardDestination);
-        } else if (ProtocolType.MQTT == protocolType) {
+        } else if (SubscriptionType.MQTT == subscriptionType) {
             matching = MQTTUtils.isTargetQueueBoundByMatchingToRoutingKey(wildCardDestination, nonWildCardDestination);
         } else {
-            throw new AndesException("Protocol type " + protocolType + " is not recognized.");
+            throw new AndesException("Subscription type " + subscriptionType + " is not recognized.");
         }
 
         return matching;
@@ -380,7 +379,7 @@ public class TopicSubscriptionBitMapStore implements AndesSubscriptionStore {
      * subscriptions are available for those, they should match. Hence need to create these empty constituent tables.
      */
     private void addEmptyConstituentTable() {
-        int noOfSubscriptions = subscriptionList.size();
+        int noOfSubscriptions = wildCardSubscriptionList.size();
         Map<String, BitSet> constituentTable = new HashMap<String, BitSet>();
 
         BitSet nullBitSet = new BitSet(noOfSubscriptions);
@@ -416,8 +415,8 @@ public class TopicSubscriptionBitMapStore implements AndesSubscriptionStore {
      * @param subscription The subscription to remove
      */
     @Override
-    public void removeSubscription(AndesSubscription subscription) {
-        int subscriptionIndex = subscriptionList.indexOf(subscription);
+    public void removeWildCardSubscription(AndesSubscription subscription) {
+        int subscriptionIndex = wildCardSubscriptionList.indexOf(subscription);
 
         if (subscriptionIndex > -1) {
             for (Map<String, BitSet> constituentTable : constituentTables) {
@@ -444,7 +443,7 @@ public class TopicSubscriptionBitMapStore implements AndesSubscriptionStore {
             }
 
             // Remove the subscription from subscription list
-            subscriptionList.remove(subscriptionIndex);
+            wildCardSubscriptionList.remove(subscriptionIndex);
         } else {
             log.warn("Subscription for destination : " + subscription.getSubscribedDestination() + " is not found to " +
                     "remove");
@@ -456,20 +455,23 @@ public class TopicSubscriptionBitMapStore implements AndesSubscriptionStore {
      */
     @Override
     public boolean isSubscriptionAvailable(AndesSubscription subscription) {
-        return subscriptionList.contains(subscription);
+        return wildCardSubscriptionList.contains(subscription);
     }
 
     /**
-     * {@inheritDoc}
+     * Get matching subscribers for a given non-wildcard destination.
+     *
+     * @param destination The destination without wildcard
+     * @return Set of matching subscriptions
      */
     @Override
-    public Set<AndesSubscription> getMatchingSubscriptions(String destination, DestinationType destinationType) {
-        Set<AndesSubscription> subscriptions = new HashSet<>();
+    public Set<AndesSubscription> getMatchingWildCardSubscriptions(String destination) {
+        Set<AndesSubscription> subscriptions = new HashSet<AndesSubscription>();
 
         if (StringUtils.isNotEmpty(destination)) {
 
             // constituentDelimiter is quoted to avoid making the delimiter a regex symbol
-            String[] constituents = destination.split(Pattern.quote(constituentsDelimiter),-1);
+            String[] constituents = destination.split(Pattern.quote(constituentsDelimiter));
 
             int noOfCurrentMaxConstituents = constituentTables.size();
 
@@ -482,10 +484,10 @@ public class TopicSubscriptionBitMapStore implements AndesSubscriptionStore {
             }
 
             // Keeps the results of 'AND' operations between each bit sets
-            BitSet andBitSet = new BitSet(subscriptionList.size());
+            BitSet andBitSet = new BitSet(wildCardSubscriptionList.size());
 
             // Since BitSet is initialized with false for each element we need to flip
-            andBitSet.flip(0, subscriptionList.size());
+            andBitSet.flip(0, wildCardSubscriptionList.size());
 
             // Get corresponding bit set for each constituent in the destination and operate bitwise AND operation
             for (int constituentIndex = 0; constituentIndex < constituents.length; constituentIndex++) {
@@ -513,7 +515,7 @@ public class TopicSubscriptionBitMapStore implements AndesSubscriptionStore {
             // Valid subscriptions are filtered, need to pick from subscription pool
             int nextSetBitIndex = andBitSet.nextSetBit(0);
             while (nextSetBitIndex > -1) {
-                subscriptions.add(subscriptionList.get(nextSetBitIndex));
+                subscriptions.add(wildCardSubscriptionList.get(nextSetBitIndex));
                 nextSetBitIndex = andBitSet.nextSetBit(nextSetBitIndex + 1);
             }
 
@@ -530,14 +532,14 @@ public class TopicSubscriptionBitMapStore implements AndesSubscriptionStore {
      * @return List of all subscriptions
      */
     @Override
-    public List<AndesSubscription> getAllSubscriptions() {
-        return subscriptionList;
+    public List<AndesSubscription> getAllWildCardSubscriptions() {
+        return wildCardSubscriptionList;
     }
 
     /**
      * {@inheritDoc}
      */
-    public Set<String> getAllDestinations(DestinationType destinationType) {
+    public Set<String> getAllTopics() {
         Set<String> topics = new HashSet<>();
 
 

@@ -82,13 +82,13 @@ public class SlotMessageCounter {
     private SlotMessageCounter() {
 
         SLOT_SUBMIT_TIMEOUT = AndesConfigurationManager.readValue(
-                AndesConfiguration.PERFORMANCE_TUNING_SUBMIT_SLOT_TIMER_PERIOD);
+                AndesConfiguration.PERFORMANCE_TUNING_SUBMIT_SLOT_TIMEOUT);
 
         slotWindowSize = AndesConfigurationManager
                 .readValue(AndesConfiguration.PERFORMANCE_TUNING_SLOTS_SLOT_WINDOW_SIZE);
 
         timeOutForMessagesInQueue = AndesConfigurationManager.readValue
-                (AndesConfiguration.PERFORMANCE_TUNING_SLOTS_MESSAGE_ACCUMULATION_TIMEOUT);
+                (AndesConfiguration.PERFORMANCE_TUNING_SLOTS_SLOT_RETAIN_TIME_IN_MEMORY);
 
         slotSubmitLoopSkipCount = 0;
         slotCoordinator = MessagingEngine.getInstance().getSlotCoordinator();
@@ -187,37 +187,15 @@ public class SlotMessageCounter {
             // has reached. This is to avoid timer task or disruptor creating smaller/overlapping slots.
             if (checkMessageLimitReached(slot) || checkTimeOutReached(lastSlotUpdateTime)) {
                 try {
-                    long localSafeZone = inferLocalSafeZone(storageQueueName);
                     slotTimeOutMap.remove(storageQueueName);
                     queueToSlotMap.remove(storageQueueName);
-                    slotCoordinator.updateMessageId(storageQueueName, slot.getStartMessageId(),
-                            slot.getEndMessageId(), localSafeZone);
+                    slotCoordinator.updateMessageId(storageQueueName, slot.getStartMessageId(), slot.getEndMessageId());
                 } catch (ConnectionException e) {
                     // we only log here since this is called again from timer task if previous attempt failed
                     log.error("Error occurred while connecting to the thrift coordinator.", e);
                 }
             }
         }
-    }
-
-    /**
-     * Figure out if the currentStorageQueue's endMessageID is larger than startMessageID's of other queues. If yes,
-     * set the minimum startMessageID from those queues as the local safe Zone.
-     * @param currentStorageQueueName
-     * @return Local Safe Zone
-     */
-    private long inferLocalSafeZone(String currentStorageQueueName) {
-
-        long localSafeZone = queueToSlotMap.get(currentStorageQueueName).getEndMessageId();
-
-        for (Map.Entry<String,Slot> queueSlotEntry : queueToSlotMap.entrySet()) {
-
-            if (!queueSlotEntry.getKey().equals(currentStorageQueueName)) {
-                localSafeZone = Math.min(queueSlotEntry.getValue().getStartMessageId(),localSafeZone);
-            }
-        }
-
-        return localSafeZone;
     }
 
     public void updateSafeZoneForNode(long currentSafeZoneVal) {

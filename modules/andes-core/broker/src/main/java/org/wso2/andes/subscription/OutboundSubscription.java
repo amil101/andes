@@ -20,8 +20,6 @@ package org.wso2.andes.subscription;
 
 import org.wso2.andes.kernel.AndesContent;
 import org.wso2.andes.kernel.AndesException;
-import org.wso2.andes.kernel.AndesMessageMetadata;
-import org.wso2.andes.kernel.DeliverableAndesMetadata;
 import org.wso2.andes.kernel.ProtocolMessage;
 
 import java.util.UUID;
@@ -30,24 +28,6 @@ import java.util.UUID;
  * Contract defining subscription related to outbound operations.
  */
 public interface OutboundSubscription {
-
-    /**
-     * Forcefully disconnects protocol subscriber from server. This is called when a server admin wants to disconnect a
-     * subscriber using management console.
-     *
-     * @throws AndesException
-     */
-    void forcefullyDisconnect() throws AndesException;
-
-    /**
-     * Check if message is accepted by 'selector' set to the subscription.
-     *
-     * @param messageMetadata message to be checked
-     * @return true if message is selected, false otherwise
-     * @throws AndesException on an error
-     */
-    boolean isMessageAcceptedBySelector(AndesMessageMetadata messageMetadata)
-            throws AndesException ;
 
     /**
      * Deliver the message and content to the subscriber

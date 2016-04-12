@@ -55,5 +55,6 @@ public class MQTTEncoder extends MessageToByteEncoder<AbstractMessage> {
             throw new CorruptedFrameException("Can't find any suitable decoder for message type: " + msg.getMessageType());
         }
         encoder.encode(chc, msg, bb);
+
     }
 }

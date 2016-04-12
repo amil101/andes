@@ -48,7 +48,7 @@ public interface SlotAgent {
 	 * @param startMessageId start message id
 	 * @param endMessageId end message id
 	 */
-	boolean deleteSlot(String nodeId, String queueName, long startMessageId, long endMessageId) throws AndesException;
+	void deleteSlot(String nodeId, String queueName, long startMessageId, long endMessageId) throws AndesException;
 
 	/**
 	 * Delete slot assignments related to a specific queue name by
@@ -93,23 +93,21 @@ public interface SlotAgent {
 	 */
 	void setQueueToLastAssignedId(String queueName, long lastAssignedId) throws AndesException;
 
-    /**
-     * Get local safe zone of node from database
-     *
-     * @param nodeId id of node
-     * @return local safe zone of node (minimum ID deemed safe to delete within that node across all its JMS
-     * destinations.)
-     */
-    Long getLocalSafeZoneOfNode(String nodeId) throws AndesException;
+	/**
+	 * Get last published id of a node from database
+	 *
+	 * @param nodeId id of node
+	 * @return last published id of node
+	 */
+	Long getNodeToLastPublishedId(String nodeId) throws AndesException;
 
-    /**
-     * Set local safe zone of of a node to database
-     *
-     * @param nodeId        id of node
-     * @param localSafeZone local safe zone of node (minimum ID deemed safe to delete within that node across all its
-     *                      JMS destinations.)
-     */
-    void setLocalSafeZoneOfNode(String nodeId, long localSafeZone) throws AndesException;
+	/**
+	 * Set last published id of a node to database
+	 *
+	 * @param nodeId id of node
+	 * @param lastPublishedId last published id of node
+	 */
+	void setNodeToLastPublishedId(String nodeId, long lastPublishedId) throws AndesException;
 
 	/**
 	 * Remove entries for a publishing node when it leaves the cluster
@@ -121,8 +119,7 @@ public interface SlotAgent {
 	void removePublisherNode(String nodeId) throws AndesException;
 
 	/**
-	 * Get all message published nodes from NodeToLastPublishedId dataset in store.
-     * *This dataset maps to the nodeID - localSafeZone association within the broker.
+	 * Get all message published nodes from NodeToLastPublishedId table
 	 *
 	 * @return set of message published nodes
 	 */

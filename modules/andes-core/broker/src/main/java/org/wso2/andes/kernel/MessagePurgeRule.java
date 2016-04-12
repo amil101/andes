@@ -34,13 +34,11 @@ public class MessagePurgeRule implements CommonDeliveryRule{
      * @throws AndesException
      */
     @Override
-    public boolean evaluate(DeliverableAndesMetadata message, ProtocolType protocolType, DestinationType destinationType) throws AndesException {
+    public boolean evaluate(DeliverableAndesMetadata message) throws AndesException {
         long messageID = message.getMessageID();
-
         // Get last purged timestamp of the destination queue.
         long lastPurgedTimestampOfQueue =
-                MessageFlusher.getInstance().getMessageDeliveryInfo(message.getDestination(), protocolType,
-                        destinationType)
+                MessageFlusher.getInstance().getMessageDeliveryInfo(message.getDestination())
                         .getLastPurgedTimestamp();
 
         if (message.getArrivalTime() <= lastPurgedTimestampOfQueue) {

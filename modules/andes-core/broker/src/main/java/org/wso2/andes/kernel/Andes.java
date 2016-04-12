@@ -22,11 +22,10 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.wso2.andes.configuration.AndesConfigurationManager;
 import org.wso2.andes.configuration.enums.AndesConfiguration;
+import org.wso2.andes.kernel.disruptor.inbound.InboundEventManager;
 import org.wso2.andes.kernel.disruptor.inbound.InboundAndesChannelEvent;
 import org.wso2.andes.kernel.disruptor.inbound.InboundBindingEvent;
-import org.wso2.andes.kernel.disruptor.inbound.InboundDeleteDLCMessagesEvent;
 import org.wso2.andes.kernel.disruptor.inbound.InboundDeleteMessagesEvent;
-import org.wso2.andes.kernel.disruptor.inbound.InboundEventManager;
 import org.wso2.andes.kernel.disruptor.inbound.InboundExchangeEvent;
 import org.wso2.andes.kernel.disruptor.inbound.InboundKernelOpsEvent;
 import org.wso2.andes.kernel.disruptor.inbound.InboundQueueEvent;
@@ -36,7 +35,7 @@ import org.wso2.andes.kernel.disruptor.inbound.PubAckHandler;
 import org.wso2.andes.kernel.slot.Slot;
 import org.wso2.andes.metrics.MetricsConstants;
 import org.wso2.andes.subscription.LocalSubscription;
-import org.wso2.andes.subscription.SubscriptionEngine;
+import org.wso2.andes.subscription.SubscriptionStore;
 import org.wso2.andes.tools.utils.MessageTracer;
 import org.wso2.carbon.metrics.manager.Level;
 import org.wso2.carbon.metrics.manager.Meter;
@@ -131,7 +130,7 @@ public class Andes {
     /**
      * Initialise is package specific. We don't need outsiders initialising the API
      */
-    void initialise(SubscriptionEngine subscriptionEngine,
+    void initialise(SubscriptionStore subscriptionStore,
                     MessagingEngine messagingEngine,
                     AndesContextInformationManager contextInformationManager,
                     AndesSubscriptionManager subscriptionManager) {
@@ -140,7 +139,7 @@ public class Andes {
         this.messagingEngine = messagingEngine;
         this.subscriptionManager = subscriptionManager;
 
-        inboundEventManager = new InboundEventManager(subscriptionEngine, messagingEngine);
+        inboundEventManager = new InboundEventManager(subscriptionStore, messagingEngine);
 
         log.info("Andes API initialised.");
     }
@@ -300,12 +299,13 @@ public class Andes {
      * MQTTBridge or UI MBeans (QueueManagementInformationMBean)
      * Remove messages of the queue matching to given destination queue ( h2 / mysql etc. ).
      *
-     * @param queueEvent queue event related to purge
+     * @param queueEvent queue event related to purge 
+     * @param isTopic weather purging happens for a topic
      * since we cannot guarantee that we caught all messages in delivery threads.)
      * @throws AndesException
      */
-    public int purgeQueue(InboundQueueEvent queueEvent) throws AndesException {
-        queueEvent.purgeQueue(messagingEngine);
+    public int purgeQueue(InboundQueueEvent queueEvent, boolean isTopic) throws AndesException {
+        queueEvent.purgeQueue(messagingEngine, isTopic);
         inboundEventManager.publishStateEvent(queueEvent);
         try {
             return queueEvent.getPurgedCount(PURGE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -343,18 +343,6 @@ public class Andes {
                 messagesToRemove, moveToDeadLetterChannel);
         deleteMessagesEvent.prepareForDelete(messagingEngine);
         inboundEventManager.publishStateEvent(deleteMessagesEvent);
-    }
-
-    /**
-     * Method to delete message from the dead letter channel.
-     *
-     * @param messagesToRemove List of messages to remove
-     */
-    public void deleteMessagesFromDLC(List<AndesMessageMetadata> messagesToRemove) throws AndesException {
-        InboundDeleteDLCMessagesEvent deleteDLCMessagesEvent
-                = new InboundDeleteDLCMessagesEvent(messagesToRemove);
-        deleteDLCMessagesEvent.prepareForDelete(messagingEngine);
-        inboundEventManager.publishStateEvent(deleteDLCMessagesEvent);
     }
 
     /**
@@ -449,6 +437,17 @@ public class Andes {
     public void moveMessageToDeadLetterChannel(DeliverableAndesMetadata message, String destinationQueueName) throws
             AndesException {
         MessagingEngine.getInstance().moveMessageToDeadLetterChannel(message, destinationQueueName);
+    }
+
+    /**
+     * Remove in-memory message buffers of the destination matching to given destination in this
+     * node. This is called from the HazelcastAgent when it receives a queue purged event.
+     *
+     * @param destination queue or topic name (subscribed routing key) whose messages should be removed
+     * @throws AndesException
+     */
+    public void clearMessagesFromQueueInMemory(String destination, Long purgedTimestamp) throws AndesException {
+        MessagingEngine.getInstance().clearMessagesFromQueueInMemory(destination, purgedTimestamp);
     }
 
     /**
@@ -617,17 +616,6 @@ public class Andes {
      */
     public AndesChannel createChannel(FlowControlListener listener) {
         return flowControlManager.createChannel(listener);
-    }
-
-    /**
-     * Create a new Andes channel for a new local channel.
-     *
-     * @param listener Local flow control listener
-     * @param channelId the channel id
-     * @return AndesChannel
-     */
-    public AndesChannel createChannel(String channelId, FlowControlListener listener) {
-        return flowControlManager.createChannel(channelId, listener);
     }
 
     /**

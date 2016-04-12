@@ -22,12 +22,12 @@ import org.apache.commons.logging.LogFactory;
 import org.dna.mqtt.wso2.AndesMQTTBridge;
 import org.dna.mqtt.wso2.QOSLevel;
 import org.wso2.andes.kernel.AndesException;
+import org.wso2.andes.kernel.AndesMessageMetadata;
 import org.wso2.andes.kernel.DeliverableAndesMetadata;
 import org.wso2.andes.kernel.SubscriptionAlreadyExistsException;
-import org.wso2.andes.mqtt.connectors.MQTTConnector;
 import org.wso2.andes.mqtt.connectors.PersistenceStoreConnector;
+import org.wso2.andes.mqtt.connectors.MQTTConnector;
 import org.wso2.andes.mqtt.utils.MQTTUtils;
-
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -198,18 +198,19 @@ public class MQTTopicManager {
     }
 
     /**
-     * Will be called during the event where the client disconnection or un-subscription is triggered
+     * Will be called during the event where the subscriber disconnection or un-subscription is triggered
      *
-     * @param mqttClientChannelID the id of the channel for which the client is bound to
-     * @param unSubscribedTopic   the name of the topic for which the client is bound to
+     * @param mqttClientChannelID the id of the channel which the subscriber is bound to
+     * @param unSubscribedTopic   the name of the topic un-subscribed
      * @param username            carbon username of logged user
      * @param action              describes whether its a disconnection or an un-subscription
-     * @throws MQTTException occurs if the client was not disconnected properly
+     * @throws MQTTException occurs if the subscriber was not disconnected properly
      */
-    public void removeOrDisconnectClient(String mqttClientChannelID, String unSubscribedTopic, String username,
-            SubscriptionEvent action) throws MQTTException {
+    public void removeOrDisconnectTopicSubscription(String mqttClientChannelID, String unSubscribedTopic,String username,
+                                                    SubscriptionEvent action) throws MQTTException {
 
-        log.info("Disconnecting channel for clientID: " + mqttClientChannelID);
+
+        log.info("Disconnecting subscriber channel = " + mqttClientChannelID);
 
         Collection<MQTTSubscription> topicSubscriptionList;
         MQTTopics mqtTopics = topicSubscriptions.get(mqttClientChannelID);
@@ -277,7 +278,7 @@ public class MQTTopicManager {
     /**
      * Will notify to the subscribers who are bound to the topic
      *
-     * @param subscribeDestination   Subscribed destination of the subscription (with wildcards)
+     * @param destination   destination of the subscription (with wildcards)
      * @param message       the message content
      * @param messageID     the identifier of the message
      * @param publishedQOS  the level of qos the message was published
@@ -285,7 +286,7 @@ public class MQTTopicManager {
      * @param subscriberQOS the level of QOS of the subscription
      * @throws MQTTException during a failure to deliver the message to the subscribers
      */
-    public void distributeMessageToSubscriber(String subscribeDestination, ByteBuffer message, long messageID,
+    public void distributeMessageToSubscriber(String destination, ByteBuffer message, long messageID,
                                               int publishedQOS, boolean shouldRetain, String channelID, int subscriberQOS
                                               ,DeliverableAndesMetadata metaData)
             throws MQTTException {
@@ -303,21 +304,21 @@ public class MQTTopicManager {
             //There could be a situation where the message was published, but before it arrived to the subscription
             //The subscriber has disconnected at a situation as such we have to indicate the disconnection
             if (null != topicSubscriptions) {
-                Integer mid = topicSubscriptions.addOnFlightMessage(subscribeDestination, messageID,metaData);
+                Integer mid = topicSubscriptions.addOnFlightMessage(destination, messageID,metaData);
 
                 if (log.isDebugEnabled()) {
                     log.debug("The message with id " + mid + " is sent for delivery to subscriber, " + channelID +
-                            " for topic " + metaData.getDestination());
+                            " for topic " + destination);
                 }
-                getBridgeInstance().distributeMessageToSubscriptions(subscribeDestination, metaData.getDestination(),
-                        publishedQOS, message, shouldRetain, mid, channelID);
+                getBridgeInstance().distributeMessageToSubscriptions(destination, publishedQOS, message,
+                        shouldRetain, mid, channelID);
             } else {
                 throw new MQTTException("The subscriber with id " + channelID +
                         " has disconnected hence message will not be published. Message ID= " + messageID);
             }
         } else {
-            getBridgeInstance().distributeMessageToSubscriptions(subscribeDestination, metaData.getDestination(),
-                    publishedQOS, message, shouldRetain, mqttLocalMessageID, channelID);
+            getBridgeInstance().distributeMessageToSubscriptions(destination, publishedQOS, message,
+                    shouldRetain, mqttLocalMessageID, channelID);
         }
     }
 

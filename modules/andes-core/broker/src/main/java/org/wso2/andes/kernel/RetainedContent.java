@@ -21,7 +21,6 @@ package org.wso2.andes.kernel;
 import io.netty.buffer.ByteBuf;
 import org.wso2.andes.amqp.AMQPUtils;
 
-import java.nio.ByteBuffer;
 import java.util.Map;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
@@ -44,9 +43,9 @@ public class RetainedContent implements AndesContent {
     /**
      * Store new retain content based with given params
      *
-     * @param messageParts message content part
+     * @param messageParts  message content part
      * @param contentLength length of the message content
-     * @param messageID retain message id
+     * @param messageID     retain message id
      */
     public RetainedContent(Map<Integer, AndesMessagePart> messageParts, int contentLength, long messageID) {
         this.messagePartCache = messageParts;
@@ -59,10 +58,14 @@ public class RetainedContent implements AndesContent {
      * {@inheritDoc}
      */
     @Override
-    public int putContent(int offset, ByteBuffer destinationBuffer) throws AndesException {
+    public int
+
+
+    putContent(int offset, ByteBuf destinationBuffer) throws AndesException {
 
         int written = 0;
-        int remainingBufferSpace = destinationBuffer.remaining();
+        //        int remainingBufferSpace = destinationBuffer.remaining();
+        int remainingBufferSpace = destinationBuffer.writableBytes();
         int remainingContent = contentLength - offset;
         int maxRemaining = Math.min(remainingBufferSpace, remainingContent);
 
@@ -86,13 +89,14 @@ public class RetainedContent implements AndesContent {
             } else {
                 numOfBytesToRead = remaining;
             }
+
+            //            destinationBuffer.put(messagePart.getData(), positionToReadFromChunk, numOfBytesToRead);
             messagePart.getData().clear();
-            ByteBuf slice=wrappedBuffer(messagePart.getData()).slice(positionToReadFromChunk,numOfBytesToRead);
+            ByteBuf slice = wrappedBuffer(messagePart.getData()).slice(positionToReadFromChunk, numOfBytesToRead);
             slice.clear();
-            destinationBuffer.put(slice.nioBuffer(0,slice.capacity()));
+            //            destinationBuffer.put(slice.nioBuffer(0,slice.capacity()));
 
-       //     destinationBuffer.put(messagePart.getData(), positionToReadFromChunk, numOfBytesToRead);
-
+            destinationBuffer.writeBytes(slice);
             written = written + numOfBytesToRead;
             currentBytePosition = currentBytePosition + numOfBytesToRead;
         }
@@ -103,8 +107,7 @@ public class RetainedContent implements AndesContent {
     /**
      * Get Message part for byte index
      *
-     * @param indexToQuery
-     *         Byte index of the content
+     * @param indexToQuery Byte index of the content
      * @return Content chunk
      */
     private AndesMessagePart getMessagePart(int indexToQuery) throws AndesException {

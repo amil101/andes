@@ -379,17 +379,16 @@ public class ProtocolProcessor implements EventHandler<ValueEvent>, PubAckHandle
 
     /**
      * Method written by WSO2. Since we would be sequentially writing the message to the subscribers
-     *  @param subscribedDestination The subscribed destination, this may include wildcards
-     * @param messageDestination The destination the message was published to
+     *
+     * @param topic       the name of the topic the message was published
      * @param qos         the level of qos the message was published this could be either 0,1 or 2
      * @param message     the content of the message
      * @param retain      should this message retain
      * @param messageID   the unique identifier of the message
      */
-    public void publishToSubscriber(String subscribedDestination, String messageDestination,
-                                    AbstractMessage.QOSType qos, ByteBuffer message, boolean retain, Integer messageID,
-                                    String mqttClientID) throws MQTTException {
-        Subscription subscription = subscriptions.getSubscriptions(subscribedDestination, mqttClientID);
+    public void publishToSubscriber(String topic, AbstractMessage.QOSType qos, ByteBuffer message,
+                                    boolean retain, Integer messageID, String mqttClientID) throws MQTTException {
+        Subscription subscription = subscriptions.getSubscriptions(topic, mqttClientID);
 
         if (subscription != null) {
 
@@ -402,27 +401,27 @@ public class ProtocolProcessor implements EventHandler<ValueEvent>, PubAckHandle
             //TODO check whether the QOS 0 messages should be retained
             if (qos == AbstractMessage.QOSType.MOST_ONE && subscription.isActive()) {
                 //QoS 0
-                sendPublish(subscription.getClientId(), messageDestination, qos, message, retain);
+                sendPublish(subscription.getClientId(), topic, qos, message, retain);
             } else {
                 //QoS 1 or 2
                 //if the target subscription is not clean session and is not connected => store it
                 if (!subscription.isCleanSession() && !subscription.isActive()) {
                     //clone the event with matching clientID
                     //TODO if its clean session we don't need to store it, it will be stored at the andes layer itself
-                    PublishEvent newPublishEvt = new PublishEvent(subscribedDestination, qos, message, retain, subscription.getClientId(),
+                    PublishEvent newPublishEvt = new PublishEvent(topic, qos, message, retain, subscription.getClientId(),
                             messageID, null);
                     m_storageService.storePublishForFuture(newPublishEvt);
                 } else {
                     //Then we need to store this
                  /*   if(qos.getValue() > 0){
-                        PublishEvent newPublishEvt = new PublishEvent(subscribedDestination, qos, message, retain, subscription.getClientId(),
+                        PublishEvent newPublishEvt = new PublishEvent(topic, qos, message, retain, subscription.getClientId(),
                                 messageID, null);
                         m_storageService.storePublishForFuture(newPublishEvt);
                     }*/
                     //publish
                     if (subscription.isActive()) {
                         //Change done by WSO2 will be overloading the method
-                        sendPublish(subscription.getClientId(), messageDestination, qos, message, retain, messageID);
+                        sendPublish(subscription.getClientId(), topic, qos, message, retain, messageID);
                     }
                 }
             }
@@ -684,7 +683,7 @@ public class ProtocolProcessor implements EventHandler<ValueEvent>, PubAckHandle
         subscriptions.deactivate(clientID);
 
         try {
-            AndesMQTTBridge.getBridgeInstance().onClientDisconnection(clientID, null,
+            AndesMQTTBridge.getBridgeInstance().onSubscriberDisconnection(clientID,null,
                     username, AndesMQTTBridge.SubscriptionEvent.DISCONNECT);
             log.info("Disconnected client " + clientID + " with clean session " + cleanSession);
         } catch (MQTTException e) {
@@ -722,11 +721,11 @@ public class ProtocolProcessor implements EventHandler<ValueEvent>, PubAckHandle
             // subscription has never created due to invalid credentials.
             if(authSubjects.containsKey(clientID)) {
                 String username = authSubjects.get(clientID).getUsername();
-                AndesMQTTBridge.getBridgeInstance().onClientDisconnection(clientID, null, username,
-                        AndesMQTTBridge.SubscriptionEvent.DISCONNECT);
+                AndesMQTTBridge.getBridgeInstance().onSubscriberDisconnection(clientID,null,
+                                      username, AndesMQTTBridge.SubscriptionEvent.DISCONNECT);
             }
             } catch (MQTTException e) {
-                final String message = "Error occurred when attempting to disconnect subscriber ";
+                final String message = "Error occured when attempting to diconnect subscriber ";
                 log.error(message + e.getMessage(), e);
             }
             removeAuthorizationSubject(clientID);
@@ -762,14 +761,14 @@ public class ProtocolProcessor implements EventHandler<ValueEvent>, PubAckHandle
             subscriptions.removeSubscription(topic, clientID);
             //also will unsubscribe from the kernel
             try {
-                AndesMQTTBridge.getBridgeInstance().onClientDisconnection(clientID, topic,
-                        authSubjects.get(clientID).getUsername(),
-                        AndesMQTTBridge.SubscriptionEvent.UNSUBSCRIBE);
+                AndesMQTTBridge.getBridgeInstance().onSubscriberDisconnection(clientID,topic,
+                                                                authSubjects.get(clientID).getUsername(),
+                                                                AndesMQTTBridge.SubscriptionEvent.UNSUBSCRIBE);
             } catch (Exception e) {
                 final String message = "Error occurred when disconnecting the subscriber ";
                 log.error(message + e.getMessage());
             }
-            // bridge.onClientDisconnection(clientID);
+            // bridge.onSubscriberDisconnection(clientID);
         }
         //ack the client
         UnsubAckMessage ackMessage = new UnsubAckMessage();

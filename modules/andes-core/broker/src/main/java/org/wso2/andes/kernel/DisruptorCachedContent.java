@@ -19,8 +19,8 @@
 package org.wso2.andes.kernel;
 
 import io.netty.buffer.ByteBuf;
+import org.apache.log4j.Logger;
 
-import java.nio.ByteBuffer;
 import java.util.Map;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
@@ -28,16 +28,17 @@ import static io.netty.buffer.Unpooled.wrappedBuffer;
 /**
  * DisruptorCachedContent has access to content cache built by the disruptor
  */
+
 public class DisruptorCachedContent implements AndesContent {
     /**
      * Used to store message parts in memory
      */
     private final Map<Integer, AndesMessagePart> contentList;
-
     /**
      * Content length of the message
      */
     private final int contentLength;
+    private static final Logger log = Logger.getLogger(DisruptorCachedContent.class);
 
     /**
      * Maximum chunk size allowed within Andes core
@@ -60,9 +61,10 @@ public class DisruptorCachedContent implements AndesContent {
      * {@inheritDoc}
      */
     @Override
-    public int putContent(int offset, ByteBuffer destinationBuffer) throws AndesException {
+    public int putContent(int offset, ByteBuf destinationBuffer) throws AndesException {
         int written = 0;
-        int remainingBufferSpace = destinationBuffer.remaining();
+//        int remainingBufferSpace = destinationBuffer.remaining();
+        int remainingBufferSpace = destinationBuffer.writableBytes();
         int remainingContent = contentLength - offset;
         int maxRemaining = Math.min(remainingBufferSpace, remainingContent);
 
@@ -86,15 +88,15 @@ public class DisruptorCachedContent implements AndesContent {
             } else {
                 numOfBytesToRead = remaining;
             }
+
+//            destinationBuffer.put(messagePart.getData(), positionToReadFromChunk, numOfBytesToRead);
             messagePart.getData().clear();
             ByteBuf slice=wrappedBuffer(messagePart.getData()).slice(positionToReadFromChunk,numOfBytesToRead);
             slice.clear();
-            destinationBuffer.put(slice.nioBuffer(0,slice.capacity()));
-            //            destinationBuffer.put(messagePart.getData(), positionToReadFromChunk, numOfBytesToRead);
-
-
+            destinationBuffer.writeBytes(slice,0,slice.capacity());
             written = written + numOfBytesToRead;
             currentBytePosition = currentBytePosition + numOfBytesToRead;
+
         }
 
         return written;

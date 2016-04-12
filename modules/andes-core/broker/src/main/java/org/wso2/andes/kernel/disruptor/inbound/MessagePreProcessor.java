@@ -22,18 +22,11 @@ import com.lmax.disruptor.EventHandler;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.wso2.andes.amqp.AMQPUtils;
-import org.wso2.andes.kernel.AndesChannel;
-import org.wso2.andes.kernel.AndesException;
-import org.wso2.andes.kernel.AndesMessage;
-import org.wso2.andes.kernel.AndesMessageMetadata;
-import org.wso2.andes.kernel.AndesMessagePart;
-import org.wso2.andes.kernel.AndesSubscription;
-import org.wso2.andes.kernel.AndesUtils;
-import org.wso2.andes.kernel.DestinationType;
-import org.wso2.andes.kernel.ProtocolType;
+import org.wso2.andes.kernel.*;
 import org.wso2.andes.metrics.MetricsConstants;
 import org.wso2.andes.server.ClusterResourceHolder;
-import org.wso2.andes.subscription.SubscriptionEngine;
+import org.wso2.andes.server.store.MessageMetaDataType;
+import org.wso2.andes.subscription.SubscriptionStore;
 import org.wso2.andes.tools.utils.MessageTracer;
 import org.wso2.carbon.metrics.manager.Level;
 import org.wso2.carbon.metrics.manager.Meter;
@@ -51,11 +44,11 @@ import java.util.Set;
 public class MessagePreProcessor implements EventHandler<InboundEventContainer> {
 
     private static final Log log = LogFactory.getLog(MessagePreProcessor.class);
-    private final SubscriptionEngine subscriptionEngine;
+    private final SubscriptionStore subscriptionStore;
     private final MessageIDGenerator idGenerator;
 
-    public MessagePreProcessor(SubscriptionEngine subscriptionEngine) {
-        this.subscriptionEngine = subscriptionEngine;
+    public MessagePreProcessor(SubscriptionStore subscriptionStore) {
+        this.subscriptionStore = subscriptionStore;
         idGenerator = new MessageIDGenerator();
     }
 
@@ -162,16 +155,15 @@ public class MessagePreProcessor implements EventHandler<InboundEventContainer> 
         try {
 
             // Get subscription list according to the message type
-            ProtocolType protocolType =
-                    AndesUtils.getProtocolTypeForMetaDataType(message.getMetadata().getMetaDataType());
+            AndesSubscription.SubscriptionType subscriptionType;
 
-            subscriptionList = subscriptionEngine.getClusterSubscribersForDestination(messageRoutingKey,
-                    protocolType, DestinationType.TOPIC);
+            if (MessageMetaDataType.META_DATA_MQTT == message.getMetadata().getMetaDataType()) {
+                subscriptionType = AndesSubscription.SubscriptionType.MQTT;
+            } else {
+                subscriptionType = AndesSubscription.SubscriptionType.AMQP;
+            }
 
-            subscriptionList.addAll(subscriptionEngine.getClusterSubscribersForDestination(messageRoutingKey,
-                    protocolType, DestinationType.DURABLE_TOPIC));
-
-            //We do not consider message selectors here. They will be considered when being delivered
+            subscriptionList = subscriptionStore.getClusterSubscribersForDestination(messageRoutingKey, true, subscriptionType);
 
             Set<String> alreadyStoredQueueNames = new HashSet<>();
             for (AndesSubscription subscription : subscriptionList) {

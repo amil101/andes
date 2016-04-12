@@ -69,13 +69,12 @@ public class OrphanedMessageHandler implements SubscriptionListener {
                                       .isDurable()) {
                     String subscribedDestination = localSubscription.getSubscribedDestination();
                     if(!subscriptionManager.checkIfActiveNonDurableLocalSubscriptionExistsForTopic
-                            (subscribedDestination, localSubscription.getProtocolType())) {
+                            (subscribedDestination)) {
                         if(log.isDebugEnabled()) {
                             log.debug("Purging messages of this node persisted under " + subscribedDestination);
                         }
                         log.info("Purging messages of this node persisted under " + subscribedDestination);
-                        removeMessagesOfDestinationForNode(subscribedDestination, null,
-                                localSubscription.getProtocolType(), DestinationType.TOPIC);
+                        removeMessagesOfDestinationForNode(subscribedDestination,null,true);
                     }
 
                 }
@@ -86,31 +85,23 @@ public class OrphanedMessageHandler implements SubscriptionListener {
                  * available for subscribed destination (considering hierarchical case). If there is
                  * none purge all messages addressed to the storage queue belonging to this node
                  */
-                if (DestinationType.TOPIC == localSubscription.getDestinationType()) {
+                if (localSubscription.getTargetQueueBoundExchangeName()
+                                     .equals(AMQPUtils.TOPIC_EXCHANGE_NAME) && !localSubscription
+                                     .isDurable()) {
                     String subscribedDestination = localSubscription.getSubscribedDestination();
                     if(!subscriptionManager.checkIfActiveNonDurableLocalSubscriptionExistsForTopic
-                            (subscribedDestination, localSubscription.getProtocolType())) {
+                            (subscribedDestination)) {
                         log.info("Purging messages of this node persisted under " + subscribedDestination);
-                        removeMessagesOfDestinationForNode(subscribedDestination, null,
-                                localSubscription.getProtocolType(), DestinationType.TOPIC);
+                        removeMessagesOfDestinationForNode(subscribedDestination,null,true);
                     }
                 }
                 break;
         }
     }
 
-    /**
-     * Remove all the messages persisted for a destination.
-     *
-     * @param destination The destination
-     * @param ownerName Owner of the destination
-     * @param protocolType The protocol which the destination belongs to
-     * @param destinationType The destination type
-     * @throws AndesException
-     */
-    private void removeMessagesOfDestinationForNode(String destination, String ownerName, ProtocolType protocolType,
-                                                    DestinationType destinationType) throws AndesException {
+    private void removeMessagesOfDestinationForNode(String destination,
+                                                    String ownerName, boolean isTopic) throws AndesException {
 
-        MessagingEngine.getInstance().purgeMessages(destination, ownerName, protocolType, destinationType);
+        MessagingEngine.getInstance().purgeMessages(destination, ownerName, isTopic);
     }
 }

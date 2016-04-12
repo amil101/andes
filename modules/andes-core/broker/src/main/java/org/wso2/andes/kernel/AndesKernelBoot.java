@@ -38,7 +38,7 @@ import org.wso2.andes.server.virtualhost.VirtualHost;
 import org.wso2.andes.server.virtualhost.VirtualHostConfigSynchronizer;
 import org.wso2.andes.store.FailureObservingAndesContextStore;
 import org.wso2.andes.store.FailureObservingMessageStore;
-import org.wso2.andes.subscription.SubscriptionEngine;
+import org.wso2.andes.subscription.SubscriptionStore;
 import org.wso2.andes.thrift.MBThriftServer;
 import org.wso2.carbon.context.CarbonContext;
 import org.wso2.carbon.user.api.UserStoreException;
@@ -79,26 +79,31 @@ public class AndesKernelBoot {
     /**
      * This will boot up all the components in Andes kernel and bring the server to working state
      */
-    public static void initializeComponents() throws AndesException {
-        isKernelShuttingDown = false;
+    public static void bootAndesKernel() throws AndesException {
+        try {
+            isKernelShuttingDown = false;
+            //loadConfigurations - done from outside
+            //startAndesStores - done from outside
+            int threadPoolCount = 1;
+            andesRecoveryTaskScheduler = Executors.newScheduledThreadPool(threadPoolCount);
+            startAndesComponents();
+            startHouseKeepingThreads();
+            syncNodeWithClusterState();
+            registerMBeans();
+            startThriftServer();
+            startMessaging();
+            createSuperTenantDLC();
 
-        //loadConfigurations - done from outside
-        //startAndesStores - done from outside
-        int threadPoolCount = 1;
-        andesRecoveryTaskScheduler = Executors.newScheduledThreadPool(threadPoolCount);
-        startAndesComponents();
-        startHouseKeepingThreads();
-        syncNodeWithClusterState();
-        registerMBeans();
-        startThriftServer();
-        Andes.getInstance().startSafeZoneAnalysisWorker();
+            //Start slot deleting thread only if clustering is enabled.
+            //Otherwise slots assignment will not happen
+            if (AndesContext.getInstance().isClusteringEnabled()) {
+                SlotDeletionExecutor.getInstance().init();
+            }
 
-        //Start slot deleting thread only if clustering is enabled.
-        //Otherwise slots assignment will not happen
-        if (AndesContext.getInstance().isClusteringEnabled()) {
-            SlotDeletionExecutor.getInstance().init();
+            Andes.getInstance().startSafeZoneAnalysisWorker();
+        } catch (JMException e) {
+            throw new AndesException("Unable to register Andes MBeans", e);
         }
-
     }
 
     /**
@@ -123,7 +128,7 @@ public class AndesKernelBoot {
 
                     // Initialize current node's last published ID
                     ClusterAgent clusterAgent = AndesContext.getInstance().getClusterAgent();
-                    contextStore.setLocalSafeZoneOfNode(clusterAgent.getLocalNodeIdentifier(), 0);
+                    contextStore.setNodeToLastPublishedId(clusterAgent.getLocalNodeIdentifier(), 0);
 
                     recoverMapsForEachQueue();
                     hazelcastAgent.indicateSuccessfulInitilization();
@@ -249,8 +254,8 @@ public class AndesKernelBoot {
         AndesContext.getInstance().setAndesContextStore(contextStore);
         
         //create subscription store
-        SubscriptionEngine subscriptionEngine = new SubscriptionEngine();
-        AndesContext.getInstance().setSubscriptionEngine(subscriptionEngine);
+        SubscriptionStore subscriptionStore = new SubscriptionStore();
+        AndesContext.getInstance().setSubscriptionStore(subscriptionStore);
         
         /**
          * initialize subscription managing
@@ -262,7 +267,7 @@ public class AndesKernelBoot {
         // directly wire the instance without wrapped instance
         messageStore = new FailureObservingMessageStore(createMessageStoreFromConfig(contextStoreInConfig));
         MessagingEngine messagingEngine = MessagingEngine.getInstance();
-        messagingEngine.initialise(messageStore, subscriptionEngine);
+        messagingEngine.initialise(messageStore, subscriptionStore);
 
         // Setting the message store in the context store
         AndesContext.getInstance().setMessageStore(messageStore);
@@ -273,11 +278,11 @@ public class AndesKernelBoot {
 
         // initialise Andes context information related manager class
         AndesContextInformationManager contextInformationManager = 
-                new AndesContextInformationManager(amqpConstructStore, subscriptionEngine,
+                new AndesContextInformationManager(amqpConstructStore, subscriptionStore,
                                                    contextStore, messageStore);
         
         // When message stores are initialised initialise Andes as well.
-        Andes.getInstance().initialise(subscriptionEngine, messagingEngine,
+        Andes.getInstance().initialise(subscriptionStore, messagingEngine,
                 contextInformationManager, subscriptionManager);
 
         // initialize amqp constructs syncing into Qpid
@@ -355,27 +360,24 @@ public class AndesKernelBoot {
     }
 
     /**
-     * Register Andes MBeans
+     * Register andes MBeans
      *
+     * @throws JMException
      */
-    public static void registerMBeans() throws AndesException {
+    public static void registerMBeans() throws JMException {
 
-        try {
-            ClusterManagementInformationMBean clusterManagementMBean = new
-                    ClusterManagementInformationMBean(
-                    ClusterResourceHolder.getInstance().getClusterManager());
-            clusterManagementMBean.register();
+        ClusterManagementInformationMBean clusterManagementMBean = new
+                ClusterManagementInformationMBean(
+                ClusterResourceHolder.getInstance().getClusterManager());
+        clusterManagementMBean.register();
 
-            SubscriptionManagementInformationMBean subscriptionManagementInformationMBean = new
-                    SubscriptionManagementInformationMBean();
-            subscriptionManagementInformationMBean.register();
+        SubscriptionManagementInformationMBean subscriptionManagementInformationMBean = new
+                SubscriptionManagementInformationMBean();
+        subscriptionManagementInformationMBean.register();
 
-            MessageStatusInformationMBean messageStatusInformationMBean = new
-                    MessageStatusInformationMBean();
-            messageStatusInformationMBean.register();
-        } catch (JMException ex) {
-            throw new AndesException("Unable to register Andes MBeans", ex);
-        }
+        MessageStatusInformationMBean messageStatusInformationMBean = new
+                MessageStatusInformationMBean();
+        messageStatusInformationMBean.register();
     }
 
     /**
@@ -453,7 +455,7 @@ public class AndesKernelBoot {
     /**
      * Create a DEAD_LETTER_CHANNEL for the super tenant.
      */
-    public static void createSuperTenantDLC() throws AndesException {
+    private static void createSuperTenantDLC() throws AndesException {
         CarbonContext carbonContext = CarbonContext.getThreadLocalCarbonContext();
         try {
             String adminUserName = carbonContext.getUserRealm().getRealmConfiguration().getAdminUserName();

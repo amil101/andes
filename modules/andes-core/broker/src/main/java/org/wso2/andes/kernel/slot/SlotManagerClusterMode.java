@@ -127,12 +127,16 @@ public class SlotManagerClusterMode {
 			if (null == slotToBeAssigned) {
 				slotToBeAssigned = getFreshSlot(queueName, nodeId);
 			}
+		}
 
-			if (null != slotToBeAssigned) {
-				updateSlotAssignmentMap(queueName, slotToBeAssigned, nodeId);
-				if (log.isDebugEnabled()) {
-					log.debug("Assigning slot for node : " + nodeId + " | " + slotToBeAssigned);
-				}
+		if (null != slotToBeAssigned) {
+			updateSlotAssignmentMap(queueName, slotToBeAssigned, nodeId);
+			if (log.isDebugEnabled()) {
+				log.debug("Assigning slot for node : " + nodeId + " | " + slotToBeAssigned);
+			}
+		} else {
+			if (log.isDebugEnabled()) {
+				log.debug("Slot Manager - returns empty slot for the queue: " + queueName);
 			}
 		}
 
@@ -259,11 +263,9 @@ public class SlotManagerClusterMode {
 	 * @param lastMessageIdInTheSlot  last message ID of the slot
 	 * @param startMessageIdInTheSlot start message ID of the slot
 	 * @param nodeId                  Node ID of the node that is sending the request.
-     * @param localSafeZone           Local safe zone of the requesting node.
-     *
 	 */
 	public void updateMessageID(String queueName, String nodeId, long startMessageIdInTheSlot,
-	                            long lastMessageIdInTheSlot, long localSafeZone) throws AndesException {
+	                            long lastMessageIdInTheSlot) throws AndesException {
 
 		//setting up first message id of the slot
 		if (firstMessageId > startMessageIdInTheSlot || firstMessageId == -1) {
@@ -328,17 +330,7 @@ public class SlotManagerClusterMode {
 						}
 					}
 				} else {
-					/*
-                     * The fact that the slot ended up in this condition means that, all previous slots within this
-					 * range have been already processed and deleted. This is a very rare scenario.
-					 */
-                    if (log.isDebugEnabled()) {
-                        log.debug("A submit slot request has come from the past after deletion of any " +
-                                "possible overlapping slots. nodeId : " + nodeId + " StartMessageID : " +
-                                startMessageIdInTheSlot + " EndMessageID : " + lastMessageIdInTheSlot);
-                    }
-
-                    slotAgent.addMessageId(queueName, lastMessageIdInTheSlot);
+					slotAgent.addMessageId(queueName, lastMessageIdInTheSlot);
 				}
 			} else {
 				//Update the store only if the last assigned message ID is less than the new start message ID
@@ -350,8 +342,8 @@ public class SlotManagerClusterMode {
 					          lastMessageIdInTheSlot + " to store");
 				}
 			}
-			//record local safe zone
-			slotAgent.setLocalSafeZoneOfNode(nodeId, localSafeZone);
+			//record last published message ID
+			slotAgent.setNodeToLastPublishedId(nodeId, lastMessageIdInTheSlot);
 		}
 	}
 
@@ -391,23 +383,23 @@ public class SlotManagerClusterMode {
 	 * @param emptySlot reference of the slot to be deleted
 	 */
 	public boolean deleteSlot(String queueName, Slot emptySlot, String nodeId) throws AndesException {
-		boolean slotDeleted = false;
 
 		long startMsgId = emptySlot.getStartMessageId();
 		long endMsgId = emptySlot.getEndMessageId();
 		long slotDeleteSafeZone = getSlotDeleteSafeZone();
 		if (log.isDebugEnabled()) {
 			log.debug("Trying to delete slot. safeZone= " + getSlotDeleteSafeZone()
-                    + " startMsgID: " + startMsgId);
+					+ " startMsgID: " + startMsgId);
 		}
 		if (slotDeleteSafeZone > endMsgId) {
 			String lockKey = nodeId + SlotManagerClusterMode.class;
 			synchronized (lockKey.intern()) {
-				slotDeleted = slotAgent.deleteSlot(nodeId, queueName, startMsgId, endMsgId);
+				slotAgent.deleteSlot(nodeId, queueName, startMsgId, endMsgId);
 				if (log.isDebugEnabled()) {
-					log.debug(" Deleted slot id = " + emptySlot.getId() + " queue name = " + queueName + " deleteSuccess: " + slotDeleted);
+					log.debug(" Deleted slot id = " + emptySlot.getId() + " queue name = " + queueName);
 				}
 			}
+			return true;
 		} else {
 			if (log.isDebugEnabled()) {
 				log.debug("Cannot delete slot as it is within safe zone "
@@ -417,7 +409,7 @@ public class SlotManagerClusterMode {
 						+ " slotToDelete= " + emptySlot);
 			}
 		}
-		return slotDeleted;
+		return false;
 	}
 
 	/**
@@ -437,9 +429,9 @@ public class SlotManagerClusterMode {
 		}
 	}
 
-	protected Long getLocalSafeZone(String nodeID) throws AndesException {
+	protected Long getLastPublishedIDByNode(String nodeID) throws AndesException {
 		Long lastPublishId;
-		lastPublishId = slotAgent.getLocalSafeZoneOfNode(nodeID);
+		lastPublishId = slotAgent.getNodeToLastPublishedId(nodeID);
 		return lastPublishId;
 	}
 
@@ -467,7 +459,7 @@ public class SlotManagerClusterMode {
 	 */
 	public long updateAndReturnSlotDeleteSafeZone(String nodeID, long safeZoneOfNode) {
 		try {
-			slotAgent.setLocalSafeZoneOfNode(nodeID, safeZoneOfNode);
+			slotAgent.setNodeToLastPublishedId(nodeID, safeZoneOfNode);
 		} catch (AndesException e) {
 			log.error("Error occurred while updating safezone value " + safeZoneOfNode + " for node " + nodeID, e);
 		}
@@ -592,7 +584,7 @@ public class SlotManagerClusterMode {
                     // Trigger a submit slot for each queue so that new slots are created
                     // for queues that have not published any messages after a node crash
                     try {
-                        updateMessageID(queueName, deletedNodeId, lastId - 1, lastId, lastId);
+                        updateMessageID(queueName, deletedNodeId, lastId - 1, lastId);
                     } catch (AndesException ex) {
                         log.error("Failed to update message id", ex);
                     }

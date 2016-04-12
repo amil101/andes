@@ -20,8 +20,8 @@ package org.wso2.andes.kernel;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.wso2.andes.server.message.AMQMessage;
 import org.wso2.andes.server.queue.QueueEntry;
-import org.wso2.andes.server.store.MessageMetaDataType;
 import org.wso2.andes.subscription.LocalSubscription;
 import org.wso2.andes.subscription.OutboundSubscription;
 
@@ -125,17 +125,15 @@ public class AndesUtils {
      * Generate storage queue name for a given destination
      * @param destination subscribed routing key
      * @param nodeID id of this node
-     * @param destinationType The destination type to generate storage queue for
+     * @param isTopic is destination represent a topic
      * @return  storage queue name for destination
      */
-    public static String getStorageQueueForDestination(String destination, String nodeID,
-                                                       DestinationType destinationType) {
+    public static String getStorageQueueForDestination(String destination, String nodeID, boolean isTopic) {
         String storageQueueName;
         // We need to add a prefix so that we could differentiate if queue is created under the same name
         //as topic
-        if(DestinationType.TOPIC == destinationType) {
-            storageQueueName = new StringBuilder(TOPIC_NODE_QUEUE_PREFIX).append("|").
-                    append(destination).append("|").append(nodeID).toString();
+        if(isTopic) {
+            storageQueueName = new StringBuilder(TOPIC_NODE_QUEUE_PREFIX).append("|").append(destination).append("|").append(nodeID).toString();
         } else {
             storageQueueName = destination;
         }
@@ -144,19 +142,17 @@ public class AndesUtils {
 
     public static LocalSubscription createLocalSubscription(OutboundSubscription subscription,
                                                             String subscriptionID, String destination,
-                                                            boolean isExclusive,
+                                                            boolean isBoundToTopic, boolean isExclusive,
                                                             boolean isDurable, String subscribedNode,
                                                             long subscribeTime, String targetQueue,
                                                             String targetQueueOwner, String targetQueueBoundExchange,
                                                             String targetQueueBoundExchangeType,
                                                             Short isTargetQueueBoundExchangeAutoDeletable,
-                                                            boolean hasExternalSubscriptions,
-                                                            DestinationType destinationType) {
+                                                            boolean hasExternalSubscriptions) {
 
-        return new LocalSubscription(subscription, subscriptionID, destination, isExclusive,
+        return new LocalSubscription(subscription, subscriptionID, destination, isBoundToTopic, isExclusive,
                 isDurable, subscribedNode, subscribeTime, targetQueue, targetQueueOwner, targetQueueBoundExchange,
-                targetQueueBoundExchangeType, isTargetQueueBoundExchangeAutoDeletable, hasExternalSubscriptions,
-                destinationType);
+                targetQueueBoundExchangeType, isTargetQueueBoundExchangeAutoDeletable, hasExternalSubscriptions);
 
     }
 
@@ -168,7 +164,7 @@ public class AndesUtils {
      */
     public static AndesAckData generateAndesAckMessage(UUID channelID, long messageID) throws AndesException {
         LocalSubscription localSubscription = AndesContext.getInstance().
-                getSubscriptionEngine().getLocalSubscriptionForChannelId(channelID);
+                getSubscriptionStore().getLocalSubscriptionForChannelId(channelID);
         if(null == localSubscription) {
             log.error("Cannot handle acknowledgement for message ID = " + messageID + " as subscription is closed "
                     + "channelID= " + "" + channelID);
@@ -187,7 +183,7 @@ public class AndesUtils {
      */
     public static DeliverableAndesMetadata lookupDeliveredMessage(long messageID, UUID channelID) throws
             AndesException {
-        LocalSubscription localSubscription = AndesContext.getInstance().getSubscriptionEngine()
+        LocalSubscription localSubscription = AndesContext.getInstance().getSubscriptionStore()
                 .getLocalSubscriptionForChannelId(channelID);
         return localSubscription.getMessageByMessageID(messageID);
     }
@@ -224,26 +220,6 @@ public class AndesUtils {
             }
         }
         return destinations;
-    }
-
-    /**
-     * Determine the matching protocol type for a given meta data type.
-     *
-     * @param metaDataType The meta data type to determine subscription type for
-     * @return Matching subscription type
-     */
-    public static ProtocolType getProtocolTypeForMetaDataType(MessageMetaDataType metaDataType) {
-
-        ProtocolType protocolType;
-
-        if (MessageMetaDataType.META_DATA_MQTT == metaDataType) {
-            protocolType = ProtocolType.MQTT;
-        } else {
-            // We set AMQP as the default
-            protocolType = ProtocolType.AMQP;
-        }
-
-        return protocolType;
     }
 
 }

@@ -58,20 +58,24 @@ public interface AndesContextStore extends HealthAwareStore{
     /**
      * Store subscription to the durable store.
      *
-     * @param subscription The subscription to store
+     * @param destinationIdentifier   Identifier of the destination (queue/topic) of the queue this subscription is bound to
+     * @param subscriptionID          Id of the subscription
+     * @param subscriptionEncodeAsStr String encoded subscription
      * @throws AndesException
      */
-    void storeDurableSubscription(AndesSubscription subscription)
+    void storeDurableSubscription(String destinationIdentifier, String subscriptionID, String subscriptionEncodeAsStr)
 		    throws AndesException;
 
 
     /**
      * Update already existing subscription.
      *
-     * @param subscription The subscriptoin object to update
+     * @param destinationIdentifier     Identifier of the destination (queue/topic) of the queue this subscription is bound to
+     * @param subscriptionID            Id of the subscription
+     * @param subscriptionEncodeAsStr   String encoded subscription to be updated
      * @throws AndesException
      */
-    void updateDurableSubscription(AndesSubscription subscription)
+    void updateDurableSubscription(String destinationIdentifier, String subscriptionID, String subscriptionEncodeAsStr)
 		    throws AndesException;
 
     /**
@@ -85,9 +89,10 @@ public interface AndesContextStore extends HealthAwareStore{
     /**
      * Remove stored subscription from durable store.
      *
-     * @param subscription The subscription to remove
+     * @param destinationIdentifier identifier of the destination (queue/topic) of the queue this subscription is bound to
+     * @param subscriptionID        id of the subscription
      */
-    void removeDurableSubscription(AndesSubscription subscription) throws AndesException;
+    void removeDurableSubscription(String destinationIdentifier, String subscriptionID) throws AndesException;
 
     /**
      * Store details of node.
@@ -254,10 +259,9 @@ public interface AndesContextStore extends HealthAwareStore{
      * Delete a slot from store.
      * @param startMessageId start message id of slot
      * @param endMessageId end message id of slot
-     * @return True if slot deletion successful
      * @throws AndesException
      */
-    boolean deleteSlot(long startMessageId, long endMessageId) throws AndesException;
+    void deleteSlot(long startMessageId, long endMessageId) throws AndesException;
 
     /**
      * Delete all slots by queue name.
@@ -326,20 +330,20 @@ public interface AndesContextStore extends HealthAwareStore{
     void setQueueToLastAssignedId(String queueName, long messageId) throws AndesException;
 
     /**
-     * Get local safe zone for a given node.
+     * Get last published id for a given node.
      * @param nodeId id of node
-     * @return local safe zone of node
+     * @return last published if of node
      * @throws AndesException
      */
-    long getLocalSafeZoneOfNode(String nodeId) throws AndesException;
+    long getNodeToLastPublishedId(String nodeId) throws AndesException;
 
     /**
-     * Set local safe zone for a given node.
+     * Set last published id for a given node.
      * @param nodeId id of node
      * @param messageId id of message
      * @throws AndesException
      */
-    void setLocalSafeZoneOfNode(String nodeId, long messageId) throws AndesException;
+    void setNodeToLastPublishedId(String nodeId, long messageId) throws AndesException;
 
     /**
      * Remove entries for a given publishing node ID.

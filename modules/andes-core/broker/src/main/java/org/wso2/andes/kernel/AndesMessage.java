@@ -18,6 +18,7 @@
 
 package org.wso2.andes.kernel;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,11 +37,13 @@ public class AndesMessage {
      * Content is divided into chunks and referred from this list
      */
     private List<AndesMessagePart> contentChunkList;
+    private List<ByteBuffer> messagePartList=new ArrayList<ByteBuffer>();
 
     public AndesMessage(AndesMessageMetadata metadata) {
         this.metadata = metadata;
         contentChunkList = new ArrayList<AndesMessagePart>();
     }
+
 
 
     /**
@@ -64,10 +67,17 @@ public class AndesMessage {
         return contentChunkList;
     }
 
+    public List<ByteBuffer> getMessagePartList() {
+        return messagePartList;
+    }
+
     public void addMessagePart(AndesMessagePart messagePart) {
         contentChunkList.add(messagePart);
     }
 
+    public void addMessagePartList(ByteBuffer messagePart) {
+        messagePartList.add(messagePart);
+    }
     /**
      * Check whether message should be delivered to given subscriber
      * @param subscription message receiver subscription information

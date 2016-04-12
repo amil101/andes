@@ -19,6 +19,8 @@
 package org.wso2.andes.kernel;
 
 
+import java.util.Set;
+
 /**
  * This interface defines the structure of a message delivery strategy
  */
@@ -27,11 +29,11 @@ public interface MessageDeliveryStrategy {
     /**
      * Deliver message. It will find current subscriptions to deliver by the destination of the message
      * and send the messages accordingly
-     *
-     * @param messageDeliveryInfo The message delivery information holder
-     *
+     * @param destination destination of messages
+     * @param messages messages to be sent
      * @return number of messages sent
      * @throws AndesException in case of a delivery failure
      */
-    public int deliverMessageToSubscriptions(MessageDeliveryInfo messageDeliveryInfo) throws AndesException;
+    public int deliverMessageToSubscriptions(String destination, Set<DeliverableAndesMetadata> messages) throws
+            AndesException;
 }
