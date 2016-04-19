@@ -197,13 +197,13 @@ public class QpidAndesBridge {
         }
         AndesMessagePart part = new AndesMessagePart();
         src = src.slice();
-        final byte[] chunkData = new byte[src.limit()];
-        src.duplicate().get(chunkData);
+//        final byte[] chunkData = new byte[src.limit()];
+//        src.duplicate().get(chunkData);
 
-        part.setData(chunkData);
+        part.setData(src);
         part.setMessageID(messageID);
         part.setOffSet(offsetInMessage);
-        part.setDataLength(chunkData.length);
+        part.setDataLength(src.capacity());
 
         return part;
     }

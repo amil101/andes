@@ -20,6 +20,8 @@ import io.netty.channel.ChannelHandlerContext;
 import org.dna.mqtt.moquette.proto.messages.AbstractMessage;
 import org.dna.mqtt.moquette.proto.messages.PublishMessage;
 
+import static io.netty.buffer.Unpooled.wrappedBuffer;
+
 /**
  * @author andrea
  */
@@ -38,8 +40,8 @@ class PublishEncoder extends DemuxEncoder<PublishMessage> {
         ByteBuf buff = null;
         try {
             variableHeaderBuff.writeBytes(Utils.encodeString(message.getTopicName()));
-            if (message.getQos() == AbstractMessage.QOSType.LEAST_ONE ||
-                    message.getQos() == AbstractMessage.QOSType.EXACTLY_ONCE) {
+            if (message.getQos() == AbstractMessage.QOSType.LEAST_ONE
+                    || message.getQos() == AbstractMessage.QOSType.EXACTLY_ONCE) {
                 if (message.getMessageID() == null) {
                     throw new IllegalArgumentException("Found a message with QOS 1 or 2 and not MessageID setted");
                 }
@@ -60,6 +62,8 @@ class PublishEncoder extends DemuxEncoder<PublishMessage> {
             if (buff != null) {
                 buff.release();
             }
+            if (message.getPayload() != null)
+                wrappedBuffer(message.getPayload()).release();
         }
     }
 

@@ -23,6 +23,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.wso2.andes.kernel.AndesMessagePart;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -45,12 +46,12 @@ public class ContentChunkHandlerTest {
 
     @Parameterized.Parameters
     public static Collection<Object[]> data() {
-        return Arrays.asList(new Object[][]{
-                {65500, 65500, 16, 58}, // same size
-                {65500, 65534, 16, 95}, // original chunk larger than max chunk size
-                {15000, 512, 30, 25 },  // chunk size smaller than max chunk size
-                {65534, 450, 10, 5698}, // total length smaller than max chunk size
-                {800, 252525, 4, 6982}  // original chunk size is a multiple of max chunk size
+        return Arrays.asList(new Object[][] {
+                { 65500, 65500, 16, 58 }, // same size
+                { 65500, 65534, 16, 95 }, // original chunk larger than max chunk size
+                { 15000, 512, 30, 25 },  // chunk size smaller than max chunk size
+                { 65534, 450, 10, 5698 }, // total length smaller than max chunk size
+                { 800, 252525, 4, 6982 }  // original chunk size is a multiple of max chunk size
         });
     }
 
@@ -80,12 +81,12 @@ public class ContentChunkHandlerTest {
 
             StringBuilder contentPartBuilder = new StringBuilder(originalChunkSize);
             for (int j = 0; j < originalChunkSize; j++) {
-                contentPartBuilder.append((int)(Math.random() * 10)); // Should have a single character.
+                contentPartBuilder.append((int) (Math.random() * 10)); // Should have a single character.
             }
             String contentPart = contentPartBuilder.toString();
             contentBuilder.append(contentPart);
 
-            part.setData(contentPart.getBytes());
+            part.setData(ByteBuffer.wrap(contentPart.getBytes()));
             part.setOffSet(offset);
             part.setDataLength(originalChunkSize);
             originalChunks.add(part);
@@ -94,8 +95,8 @@ public class ContentChunkHandlerTest {
 
         String content = contentBuilder.toString();
 
-        List<AndesMessagePart> resultList =
-                contentChunkHandler.resizeChunks(originalChunks, originalChunkSize * originalChunkCount);
+        List<AndesMessagePart> resultList = contentChunkHandler
+                .resizeChunks(originalChunks, originalChunkSize * originalChunkCount);
 
         int numOfFullChunks = (originalChunkSize * originalChunkCount) / maxChunkSize;
         offset = 0;
@@ -105,7 +106,7 @@ public class ContentChunkHandlerTest {
             assertEquals("Chunk size mismatch", maxChunkSize, messagePart.getDataLength());
             assertEquals("Incorrect message id", messageId, messagePart.getMessageID());
             assertEquals("Incorrect offset", offset, messagePart.getOffset());
-            contentBuilder.append(new String(messagePart.getData()));
+            contentBuilder.append(new String(messagePart.getData().toString()));
             offset = offset + maxChunkSize;
         }
 
@@ -116,7 +117,7 @@ public class ContentChunkHandlerTest {
             assertEquals("Chunk size mismatch", remainingLength, messagePart.getDataLength());
             assertEquals("Incorrect message id", messageId, messagePart.getMessageID());
             assertEquals("Incorrect offset", offset, messagePart.getOffset());
-            contentBuilder.append(new String(messagePart.getData()));
+            contentBuilder.append(new String(messagePart.getData().toString()));
         }
 
         assertEquals("Content mismatch", content, contentBuilder.toString());

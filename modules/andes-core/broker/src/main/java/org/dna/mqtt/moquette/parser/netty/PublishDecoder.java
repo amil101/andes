@@ -16,13 +16,13 @@
 package org.dna.mqtt.moquette.parser.netty;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.CorruptedFrameException;
 import io.netty.util.AttributeMap;
 import org.dna.mqtt.moquette.proto.messages.AbstractMessage;
 import org.dna.mqtt.moquette.proto.messages.PublishMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.wso2.andes.server.util.objectpool;
 
 import java.util.List;
 
@@ -85,7 +85,9 @@ class PublishDecoder extends DemuxDecoder {
             return;
         }
 //        byte[] b = new byte[payloadSize];
-        ByteBuf bb = Unpooled.buffer(payloadSize);
+//        ByteBuf bb = Unpooled.buffer(payloadSize);
+        objectpool object = objectpool.getInstance();
+        ByteBuf bb = object.setDirectMemory(payloadSize);
         in.readBytes(bb);
         message.setPayload(bb.nioBuffer());
 

@@ -17,6 +17,7 @@
  */
 package org.wso2.andes.amqp;
 
+import io.netty.buffer.ByteBuf;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.wso2.andes.configuration.AndesConfigurationManager;
@@ -49,7 +50,6 @@ import org.wso2.andes.server.store.StorableMessageMetaData;
 import org.wso2.andes.server.store.StoredMessage;
 import org.wso2.andes.server.subscription.Subscription;
 import org.wso2.andes.store.StoredAMQPMessage;
-import org.wso2.andes.amqp.AMQPLocalSubscription;
 import org.wso2.andes.subscription.LocalSubscription;
 import org.wso2.andes.subscription.OutboundSubscription;
 
@@ -60,6 +60,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static io.netty.buffer.Unpooled.wrappedBuffer;
 
 /**
  * This class defines AMQP related miscellaneous util methods.
@@ -94,7 +96,8 @@ public class AMQPUtils {
      * @param metadataList Andes metadata list
      * @return Queue Entry list
      */
-    public static List<QueueEntry> getQueueEntryListFromAndesMetaDataList(AMQQueue queue, List<AndesMessageMetadata> metadataList) {
+    public static List<QueueEntry> getQueueEntryListFromAndesMetaDataList(AMQQueue queue,
+            List<AndesMessageMetadata> metadataList) {
         List<QueueEntry> messages = new ArrayList<QueueEntry>();
         SimpleQueueEntryList list = new SimpleQueueEntryList(queue);
         List<AMQMessage> amqMessageList = getEntryAMQMessageListFromAndesMetaDataList(metadataList);
@@ -112,7 +115,8 @@ public class AMQPUtils {
      * @param metadataList andes metadata list
      * @return AMQ message list
      */
-    public static List<AMQMessage> getEntryAMQMessageListFromAndesMetaDataList(List<AndesMessageMetadata> metadataList) {
+    public static List<AMQMessage> getEntryAMQMessageListFromAndesMetaDataList(
+            List<AndesMessageMetadata> metadataList) {
         List<AMQMessage> messages = new ArrayList<AMQMessage>();
 
         for (AndesMessageMetadata metadata : metadataList) {
@@ -139,23 +143,21 @@ public class AMQPUtils {
 
     /**
      * Create a new AMQMessage out of StoredMessage and content
+     *
      * @param storedMessage StoredMessage object
      * @return instance of AMQMessage
      */
     public static AMQMessage getQueueEntryFromStoredMessage(StoredMessage<MessageMetaData> storedMessage,
-                                                            AndesContent content) {
-        QpidStoredMessage<MessageMetaData> message = new QpidStoredMessage<>(
-                storedMessage, content);
+            AndesContent content) {
+        QpidStoredMessage<MessageMetaData> message = new QpidStoredMessage<>(storedMessage, content);
         return new AMQMessage(message);
     }
 
     /**
      * Convert andes metadata to Qpid AMQMessage. Returned message is aware of the disruptor memory cache.
      *
-     * @param metadata
-     *         Meta object which holds information about the message
-     * @param content
-     *         Content object which has access to the message content
+     * @param metadata Meta object which holds information about the message
+     * @param content  Content object which has access to the message content
      * @return AMQMessage
      */
     public static AMQMessage getAMQMessageForDelivery(ProtocolMessage metadata, AndesContent content) {
@@ -215,7 +217,7 @@ public class AMQPUtils {
         buf = buf.slice();
         amqMetadata.writeToBuffer(0, buf);
 
-        AndesMessageMetadata metadata = new AndesMessageMetadata(amqMessage.getMessageId(),underlying,true);
+        AndesMessageMetadata metadata = new AndesMessageMetadata(amqMessage.getMessageId(), underlying, true);
         metadata.setExpirationTime(amqMessage.getExpiration());
         metadata.setArrivalTime(amqMessage.getArrivalTime());
         metadata.setMessageContentLength(amqMetadata.getContentSize());
@@ -233,8 +235,8 @@ public class AMQPUtils {
      * @throws AndesException
      */
     //in order to tell if this is a queue subscription or a topic subscription, binding is needed
-    public static LocalSubscription createAMQPLocalSubscription(AMQQueue queue, Subscription subscription, Binding b) throws
-            AndesException {
+    public static LocalSubscription createAMQPLocalSubscription(AMQQueue queue, Subscription subscription, Binding b)
+            throws AndesException {
 
         String subscriptionID = String.valueOf(subscription.getSubscriptionID());
         Exchange exchange = b.getExchange();
@@ -244,7 +246,8 @@ public class AMQPUtils {
         String queueOwner = (queue.getOwner() == null) ? null : queue.getOwner().toString();
         String queueBoundExchangeName = "";
         String queueBoundExchangeType = exchange.getType().toString();
-        Short isqueueBoundExchangeAutoDeletable = Short.parseShort(exchange.isAutoDelete() ? Integer.toString(1) : Integer.toString(0));
+        Short isqueueBoundExchangeAutoDeletable = Short
+                .parseShort(exchange.isAutoDelete() ? Integer.toString(1) : Integer.toString(0));
         boolean isBoundToTopic = false;
 
         /**
@@ -256,7 +259,7 @@ public class AMQPUtils {
             queueBoundExchangeName = DirectExchange.TYPE.getDefaultExchangeName().toString();
             isBoundToTopic = false;
         } else if (exchange.getType().equals(TopicExchange.TYPE)) {
-            if(queue.isDurable()) {
+            if (queue.isDurable()) {
                 // Topic messages for durable subscribers are routed through queue path. Hence the durable subscriptions
                 // for topics should get the messages from queues which are bound to direct exchange.
                 // Hence we change the exchange for durable subscription to a direct exchange in Andes
@@ -273,14 +276,14 @@ public class AMQPUtils {
          * Thus we are redefining the subscription id to client ID
          * But durable subscription ID form as queue subscription ID if durable topic has enabled shared subscription.
          */
-        Boolean allowSharedSubscribers = AndesConfigurationManager.readValue(
-                AndesConfiguration.ALLOW_SHARED_SHARED_SUBSCRIBERS);
+        Boolean allowSharedSubscribers = AndesConfigurationManager
+                .readValue(AndesConfiguration.ALLOW_SHARED_SHARED_SUBSCRIBERS);
         if (queue.isDurable() && isBoundToTopic && !allowSharedSubscribers) {
             subscriptionID = queue.getName();
         }
 
-        OutboundSubscription amqpDeliverySubscription = new AMQPLocalSubscription(queue, subscription, queue
-                .isDurable(), isBoundToTopic);
+        OutboundSubscription amqpDeliverySubscription = new AMQPLocalSubscription(queue, subscription,
+                queue.isDurable(), isBoundToTopic);
 
         DestinationType destinationType;
 
@@ -294,10 +297,11 @@ public class AMQPUtils {
             destinationType = DestinationType.QUEUE;
         }
 
-        LocalSubscription localSubscription = AndesUtils.createLocalSubscription(amqpDeliverySubscription,
-                subscriptionID, destination, queue.isExclusive(), queue.isDurable(),
-                subscribedNode, subscribeTime, queue.getName(), queueOwner, queueBoundExchangeName,
-                queueBoundExchangeType, isqueueBoundExchangeAutoDeletable, subscription.isActive(), destinationType);
+        LocalSubscription localSubscription = AndesUtils
+                .createLocalSubscription(amqpDeliverySubscription, subscriptionID, destination, queue.isExclusive(),
+                        queue.isDurable(), subscribedNode, subscribeTime, queue.getName(), queueOwner,
+                        queueBoundExchangeName, queueBoundExchangeType, isqueueBoundExchangeAutoDeletable,
+                        subscription.isActive(), destinationType);
 
         return localSubscription;
     }
@@ -340,7 +344,11 @@ public class AMQPUtils {
             // message content can be returned as null if a sudden queue purge occurs and clears all message content in store.
             // This has to be handled.
             if (messagePart.getData() != null) {
-                dst.put(messagePart.getData(), positionToReadFromChunk, numOfBytesToRead);
+                //                dst.put(messagePart.getData(), positionToReadFromChunk, numOfBytesToRead);
+                messagePart.getData().clear();
+                ByteBuf slice = wrappedBuffer(messagePart.getData()).slice(positionToReadFromChunk, numOfBytesToRead);
+                slice.clear();
+                dst.put(slice.nioBuffer(0, slice.capacity()));
             }
 
             written += numOfBytesToRead;
@@ -358,23 +366,24 @@ public class AMQPUtils {
      * the retrieved value for use.
      *
      * @param messageId The message Id
-     * @param index The offset index value of the message part
+     * @param index     The offset index value of the message part
      * @return Message Part
      * @throws AndesException
      */
-    private static AndesMessagePart resolveCacheAndRetrieveMessagePart(long messageId, int index) throws AndesException {
+    private static AndesMessagePart resolveCacheAndRetrieveMessagePart(long messageId, int index)
+            throws AndesException {
         AndesMessagePart messagePart = null;
         boolean needToCache = true;
 
-        AndesMessagePart cachedMessagePart =  messagePartCache.get(messageId);
+        AndesMessagePart cachedMessagePart = messagePartCache.get(messageId);
 
         if (cachedMessagePart != null && cachedMessagePart.getOffset() == index) {
-                messagePart = cachedMessagePart;
-                needToCache = false;
+            messagePart = cachedMessagePart;
+            needToCache = false;
         } else {
             messagePart = MessagingEngine.getInstance().getMessageContentChunk(messageId, index);
 
-            if(messagePart == null) {
+            if (messagePart == null) {
                 throw new AndesException("Empty message part received while retrieving message content.");
             }
         }
@@ -387,7 +396,7 @@ public class AMQPUtils {
         /* If Message Part is not found in cache then it needs to be retrieved from the database and needs to be cached.
            Only the last retrieved message part is required in the cache since all the other parts up to it is sent.
         */
-        if(needToCache) {
+        if (needToCache) {
             messagePartCache.put(messageId, messagePart);
         }
 
@@ -410,8 +419,8 @@ public class AMQPUtils {
         }
 
         return new InboundQueueEvent(amqQueue.getName(),
-                (amqQueue.getOwner() != null) ? amqQueue.getOwner().toString() : "null",
-                amqQueue.isExclusive(), amqQueue.isDurable(), ProtocolType.AMQP, destinationType);
+                (amqQueue.getOwner() != null) ? amqQueue.getOwner().toString() : "null", amqQueue.isExclusive(),
+                amqQueue.isDurable(), ProtocolType.AMQP, destinationType);
     }
 
     /**
@@ -448,7 +457,8 @@ public class AMQPUtils {
         return new InboundBindingEvent(exchangeName, AMQPUtils.createAndesQueue(queue), routingKey.toString());
     }
 
-    public static boolean isTargetQueueBoundByMatchingToRoutingKey(String queueBoundRoutingKey, String messageRoutingKey) {
+    public static boolean isTargetQueueBoundByMatchingToRoutingKey(String queueBoundRoutingKey,
+            String messageRoutingKey) {
         boolean isMatching = false;
         if (queueBoundRoutingKey.equals(messageRoutingKey)) {
             isMatching = true;

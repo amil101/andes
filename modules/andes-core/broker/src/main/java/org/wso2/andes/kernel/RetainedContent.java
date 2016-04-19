@@ -18,10 +18,12 @@
 
 package org.wso2.andes.kernel;
 
+import io.netty.buffer.ByteBuf;
 import org.wso2.andes.amqp.AMQPUtils;
 
-import java.nio.ByteBuffer;
 import java.util.Map;
+
+import static io.netty.buffer.Unpooled.wrappedBuffer;
 
 /**
  * DisruptorCachedContent has access to content cache built by the disruptor
@@ -56,10 +58,10 @@ public class RetainedContent implements AndesContent {
      * {@inheritDoc}
      */
     @Override
-    public int putContent(int offset, ByteBuffer destinationBuffer) throws AndesException {
+    public int putContent(int offset, ByteBuf destinationBuffer) throws AndesException {
 
         int written = 0;
-        int remainingBufferSpace = destinationBuffer.remaining();
+        int remainingBufferSpace = destinationBuffer.writableBytes();
         int remainingContent = contentLength - offset;
         int maxRemaining = Math.min(remainingBufferSpace, remainingContent);
 
@@ -84,8 +86,11 @@ public class RetainedContent implements AndesContent {
                 numOfBytesToRead = remaining;
             }
 
-            destinationBuffer.put(messagePart.getData(), positionToReadFromChunk, numOfBytesToRead);
-
+//            destinationBuffer.put(messagePart.getData(), positionToReadFromChunk, numOfBytesToRead);
+            messagePart.getData().clear();
+            ByteBuf slice = wrappedBuffer(messagePart.getData()).slice(positionToReadFromChunk, numOfBytesToRead);
+            slice.clear();
+            destinationBuffer.writeBytes(slice);
             written = written + numOfBytesToRead;
             currentBytePosition = currentBytePosition + numOfBytesToRead;
         }
